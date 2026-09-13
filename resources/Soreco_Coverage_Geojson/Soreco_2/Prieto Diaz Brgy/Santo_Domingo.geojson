@@ -1,0 +1,83 @@
+{
+  "type": "FeatureCollection",
+  "name": "Santo Domingo",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "ADM4_EN": "Santo Domingo",
+        "ADM4_PCODE": "PH0506214021",
+        "ADM4_REF": null,
+        "ADM3_EN": "Prieto Diaz",
+        "ADM3_PCODE": "PH0506214",
+        "ADM2_EN": "Sorsogon",
+        "ADM2_PCODE": "PH05062",
+        "ADM1_EN": "Region V (Bicol Region)",
+        "ADM1_PCODE": "PH05",
+        "ADM0_EN": "Philippines (the)",
+        "ADM0_PCODE": "PH",
+        "date": "2022-11-09",
+        "validOn": "2023-11-06",
+        "validTo": null,
+        "Shape_Leng": 0.05021619526,
+        "Shape_Area": 0.00015152343,
+        "AREA_SQKM": 1.81813787034
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                124.18336628500003,
+                13.057899564000024
+              ],
+              [
+                124.18370227000003,
+                13.055297737000046
+              ],
+              [
+                124.184251259,
+                13.053539851000039
+              ],
+              [
+                124.17535502700002,
+                13.051386376000039
+              ],
+              [
+                124.17258700400009,
+                13.049529647000043
+              ],
+              [
+                124.1656971330001,
+                13.056502375000036
+              ],
+              [
+                124.16845832800004,
+                13.060804451000024
+              ],
+              [
+                124.17282232100001,
+                13.060931418000052
+              ],
+              [
+                124.18264252900008,
+                13.06194735300005
+              ],
+              [
+                124.18336628500003,
+                13.057899564000024
+              ]
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

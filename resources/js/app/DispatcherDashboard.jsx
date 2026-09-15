@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     CircleMarker,
     GeoJSON,
@@ -15,6 +15,34 @@ import {
     municipalityKey,
     scopes,
 } from "./data/coverage";
+
+function pointInRing(point, ring) {
+    const [x, y] = point;
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        const intersect =
+            yi > y !== yj > y &&
+            x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function pointInGeometry(point, geometry) {
+    if (!geometry) return false;
+    const polygons =
+        geometry.type === "MultiPolygon"
+            ? geometry.coordinates
+            : geometry.type === "Polygon"
+              ? [geometry.coordinates]
+              : [];
+    return polygons.some(([outer, ...holes]) => {
+        if (!outer || !pointInRing(point, outer)) return false;
+        return !holes.some((hole) => pointInRing(point, hole));
+    });
+}
 
 function FitGeoJson({ data }) {
     const map = useMap();
@@ -88,7 +116,7 @@ function NodePopup({ node, onDetails, onDispatch }) {
 }
 
 
-function DetailModal({ node, onClose, onDispatch }) {
+function DetailModal({ node, scope, onClose, onDispatch }) {
     if (!node) return null;
     return (
         <div className="detail-modal-backdrop" onClick={onClose}>
@@ -101,9 +129,14 @@ function DetailModal({ node, onClose, onDispatch }) {
             >
                 <header>
                     <div>
-                        <span>{node.id} · SORECO 1</span>
+                        <span>
+                            {node.id} · {scope?.label}
+                        </span>
                         <h2 id="detail-title">{node.name}</h2>
-                        <small>GRID NODE · POLE · CASIGURAN</small>
+                        <small>
+                            GRID NODE · POLE ·{" "}
+                            {(node.municipality || "").toUpperCase()}
+                        </small>
                     </div>
                     <button onClick={onClose} aria-label="Close details">
                         ×
@@ -197,6 +230,89 @@ export default function DispatcherDashboard() {
         [scope, municipality],
     );
     const alertNode = nodes.find((node) => node.id === "TRF-006");
+
+    const barangayStyle = useMemo(
+        () => ({
+            color: scope.color,
+            weight: 0.5,
+            fillColor: "#0d1b20",
+            fillOpacity: 0.1,
+        }),
+        [scope],
+    );
+    const barangaySelectedStyle = useMemo(
+        () => ({
+            color: "#f5f8f6",
+            weight: 2,
+            fillColor: scope.color,
+            fillOpacity: 0.5,
+        }),
+        [scope],
+    );
+    const selectedLayerRef = useRef(null);
+
+    const clearSelectedBarangay = () => {
+        if (selectedLayerRef.current) {
+            selectedLayerRef.current.setStyle(barangayStyle);
+            selectedLayerRef.current = null;
+        }
+    };
+
+    const onEachBarangay = (feature, layer) => {
+        const name =
+            feature.properties?.ADM4_EN ||
+            feature.properties?.NAME_3 ||
+            "Barangay";
+        layer.bindTooltip(name, {
+            sticky: true,
+            className: "barangay-tooltip",
+        });
+        layer.on({
+            mouseover: (event) => {
+                if (selectedLayerRef.current === event.target) return;
+                event.target.setStyle({
+                    weight: 2,
+                    color: "#f5f8f6",
+                    fillColor: scope.color,
+                    fillOpacity: 0.45,
+                });
+                event.target.bringToFront();
+            },
+            mouseout: (event) => {
+                if (selectedLayerRef.current === event.target) return;
+                event.target.setStyle(barangayStyle);
+            },
+            click: (event) => {
+                const matched = nodes.find(
+                    (node) =>
+                        (!municipality ||
+                            municipalityKey(node.municipality) ===
+                                municipalityKey(municipality)) &&
+                        pointInGeometry(
+                            [node.longitude, node.latitude],
+                            feature.geometry,
+                        ),
+                );
+                if (
+                    selectedLayerRef.current &&
+                    selectedLayerRef.current !== event.target
+                ) {
+                    selectedLayerRef.current.setStyle(barangayStyle);
+                }
+                if (matched) {
+                    event.target.setStyle(barangaySelectedStyle);
+                    event.target.bringToFront();
+                    selectedLayerRef.current = event.target;
+                    setDetailNode(matched);
+                } else {
+                    event.target.setStyle(barangayStyle);
+                    selectedLayerRef.current = null;
+                    setDispatchMessage(`No monitored node in ${name} yet`);
+                    window.setTimeout(() => setDispatchMessage(""), 2500);
+                }
+            },
+        });
+    };
 
     useEffect(() => {
         fetch("/api/public/incidents")
@@ -373,12 +489,8 @@ export default function DispatcherDashboard() {
                             <GeoJSON
                                 key={`${scopeKey}-${municipality}-barangays`}
                                 data={barangays}
-                                pathOptions={{
-                                    color: scope.color,
-                                    weight: 0.5,
-                                    fillColor: "#0d1b20",
-                                    fillOpacity: 0.1,
-                                }}
+                                style={barangayStyle}
+                                onEachFeature={onEachBarangay}
                             />
                             <FitGeoJson
                                 data={
@@ -443,7 +555,11 @@ export default function DispatcherDashboard() {
             </section>
             <DetailModal
                 node={detailNode}
-                onClose={() => setDetailNode(null)}
+                scope={scope}
+                onClose={() => {
+                    setDetailNode(null);
+                    clearSelectedBarangay();
+                }}
                 onDispatch={dispatchCrew}
             />
             {showAlert && alertNode && (

@@ -193,12 +193,24 @@ export default function PublicPortal() {
                   role="img"
                   aria-label={`${active.length} active incidents out of ${incidents.length} tracked`}
                 >
-                  {incidents.slice(0, 24).map((incident) => (
-                    <span
-                      key={incident.id}
-                      className={`bar-${severityOf(incident).tone}`}
-                    />
-                  ))}
+                  {[...incidents]
+                    .sort((a, b) => {
+                      const rank = { red: 0, amber: 1, good: 2 };
+                      return (
+                        rank[severityOf(a).tone] - rank[severityOf(b).tone]
+                      );
+                    })
+                    .slice(0, 24)
+                    .map((incident) => (
+                      <span
+                        key={incident.id}
+                        className={`bar-${severityOf(incident).tone} ${
+                          severityOf(incident).tone !== "good"
+                            ? "is-active"
+                            : ""
+                        }`}
+                      />
+                    ))}
                   {incidents.length === 0 && <span className="bar-good" />}
                 </div>
                 <div className="status-summary">

@@ -1,11 +1,30 @@
-const municipalityFiles = import.meta.glob(
+const rawMunicipalityFiles = import.meta.glob(
     "../../../Soreco_Coverage_Geojson/*/*.geojson",
-    { eager: true, query: "?json", import: "default" },
+    { eager: true, query: "?raw", import: "default" },
 );
-const barangayFiles = import.meta.glob(
+const rawBarangayFiles = import.meta.glob(
     "../../../Soreco_Coverage_Geojson/*/*/*.geojson",
-    { eager: true, query: "?json", import: "default" },
+    { eager: true, query: "?raw", import: "default" },
 );
+
+// Vite only auto-parses files with a literal .json extension. Our files are
+// .geojson, so we pull them in as raw text ("?raw", which Vite always
+// supports) and parse them ourselves.
+function parseGeojsonFiles(rawFiles) {
+    return Object.fromEntries(
+        Object.entries(rawFiles).map(([path, raw]) => {
+            try {
+                return [path, JSON.parse(raw)];
+            } catch (error) {
+                console.error(`Failed to parse GeoJSON: ${path}`, error);
+                return [path, null];
+            }
+        }),
+    );
+}
+
+const municipalityFiles = parseGeojsonFiles(rawMunicipalityFiles);
+const barangayFiles = parseGeojsonFiles(rawBarangayFiles);
 
 export const scopes = {
     soreco1: { label: "SORECO 1", color: "#ff7900", folders: ["Soreco_1"] },
@@ -25,7 +44,7 @@ export function featuresFor(files, scope, municipality = "") {
         .filter(([path]) =>
             scope.folders.some((folder) => path.includes(`/${folder}/`)),
         )
-        .map(([, data]) => data.features?.[0])
+        .map(([, data]) => data?.features?.[0])
         .filter(Boolean)
         .filter(
             (feature) =>

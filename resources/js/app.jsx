@@ -1,7 +1,22 @@
 import "../css/app.css";
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import DispatcherDashboard from "./app/DispatcherDashboard.jsx";
+
+const pages = {
+  portal: lazy(() => import("./app/PublicPortal.jsx")),
+  login: lazy(() => import("./app/LoginPage.jsx")),
+  dashboard: lazy(() => import("./app/DispatcherDashboard.jsx")),
+};
 
 const root = document.getElementById("app");
-if (root) createRoot(root).render(<DispatcherDashboard />);
+const Page = pages[root?.dataset.page];
+
+if (root && Page) {
+  createRoot(root).render(
+    <Suspense fallback={null}>
+      <Page />
+    </Suspense>,
+  );
+} else if (root) {
+  console.error(`Unknown page: "${root.dataset.page}"`);
+}

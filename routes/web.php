@@ -2,18 +2,30 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('public.index');
+/*
+|--------------------------------------------------------------------------
+| Public
+|--------------------------------------------------------------------------
+| Open to everyone. No auth, no session requirement.
+*/
+
+Route::view('/', 'portal')->name('portal');
+
+/*
+|--------------------------------------------------------------------------
+| Dispatcher console
+|--------------------------------------------------------------------------
+| Breeze registers /login, /logout, /forgot-password, etc. in auth.php.
+| We only override the login *view* so it renders our React page instead
+| of Breeze's default Blade form. The POST /login handler stays Breeze's.
+*/
+
+Route::middleware('guest')->group(function () {
+    Route::view('/login', 'auth.login')->name('login');
 });
 
-Route::prefix('public')->name('public.')->group(function () {
-    Route::get('/', function () {
-        return view('public.index');
-    })->name('home');
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::view('/dashboard', 'dashboard')->name('dashboard');
 });
 
-Route::prefix('admin')->name('admin.')->group(function () {
-    Route::get('/', function () {
-        return view('admin.dashboard');
-    })->name('dashboard');
-});
+require __DIR__.'/auth.php';

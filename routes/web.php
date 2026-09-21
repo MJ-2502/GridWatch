@@ -3,29 +3,33 @@
 use Illuminate\Support\Facades\Route;
 
 /*
-|--------------------------------------------------------------------------
-| Public
-|--------------------------------------------------------------------------
-| Open to everyone. No auth, no session requirement.
+| Public Routes
 */
-
 Route::view('/', 'portal')->name('portal');
-
-/*
-|--------------------------------------------------------------------------
-| Dispatcher console
-|--------------------------------------------------------------------------
-| Breeze registers /login, /logout, /forgot-password, etc. in auth.php.
-| We only override the login *view* so it renders our React page instead
-| of Breeze's default Blade form. The POST /login handler stays Breeze's.
-*/
 
 Route::middleware('guest')->group(function () {
     Route::view('/login', 'auth.login')->name('login');
 });
 
+/*
+| Authenticated Shared Routes
+*/
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('/dashboard', 'dashboard')->name('dashboard');
+});
+
+/*
+| Role Protected Route Groups
+*/
+
+// Admin Only (e.g. Create Dispatchers and assign them to districts)
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    // Route::post('/admin/create-dispatcher', [AdminController::class, 'storeDispatcher']);
+});
+
+// Dispatcher Only (e.g. Verify guests in their designated district)
+Route::middleware(['auth', 'role:dispatcher,admin'])->group(function () {
+    // Route::post('/dispatcher/verify-consumer/{user}', [DispatcherController::class, 'verifyConsumer']);
 });
 
 require __DIR__.'/auth.php';

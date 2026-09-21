@@ -39,18 +39,18 @@ class DatabaseSeeder extends Seeder
         );
 
         $barangays = collect([
-            ['name' => 'Central (Pob.)', 'municipality' => 'Casiguran', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Central_Pob..geojson'],
-            ['name' => 'Rizal', 'municipality' => 'Casiguran', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Rizal.geojson'],
-            ['name' => 'Casay', 'municipality' => 'Casiguran', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Casay.geojson'],
-            ['name' => 'Cogon', 'municipality' => 'Casiguran', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Cogon.geojson'],
-            ['name' => 'Adovis (Pob.)', 'municipality' => 'Casiguran', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Adovis_Pob..geojson'],
-            ['name' => 'Burgos', 'municipality' => 'Casiguran', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Burgos.geojson'],
-            ['name' => 'Inlagadian', 'municipality' => 'Casiguran', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Inlagadian.geojson'],
-            ['name' => 'Barcelona Central', 'municipality' => 'Barcelona', 'boundary_reference' => 'Soreco_2/Barcelona Brgy/Central.geojson'],
-            ['name' => 'Poblacion', 'municipality' => 'Gubat', 'boundary_reference' => 'Soreco_2/Gubat Brgy/Poblacion.geojson'],
+            ['name' => 'Central (Pob.)', 'municipality' => 'Casiguran', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Central_Pob..geojson'],
+            ['name' => 'Rizal', 'municipality' => 'Casiguran', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Rizal.geojson'],
+            ['name' => 'Casay', 'municipality' => 'Casiguran', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Casay.geojson'],
+            ['name' => 'Cogon', 'municipality' => 'Casiguran', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Cogon.geojson'],
+            ['name' => 'Adovis (Pob.)', 'municipality' => 'Casiguran', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Adovis_Pob..geojson'],
+            ['name' => 'Burgos', 'municipality' => 'Casiguran', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Burgos.geojson'],
+            ['name' => 'Inlagadian', 'municipality' => 'Casiguran', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Inlagadian.geojson'],
+            ['name' => 'Barcelona Central', 'municipality' => 'Barcelona', 'cooperative' => 'SORECO 2', 'boundary_reference' => 'Soreco_2/Barcelona Brgy/Central.geojson'],
+            ['name' => 'Poblacion', 'municipality' => 'Gubat', 'cooperative' => 'SORECO 2', 'boundary_reference' => 'Soreco_2/Gubat Brgy/Poblacion.geojson'],
         ])->mapWithKeys(function (array $data) {
             $barangay = Barangay::updateOrCreate(
-                ['name' => $data['name'], 'municipality' => $data['municipality'], 'province' => 'Sorsogon'],
+                ['name' => $data['name'], 'municipality' => $data['municipality'], 'province' => 'Sorsogon', 'cooperative' => $data['cooperative']],
                 ['boundary_reference' => $data['boundary_reference']],
             );
 
@@ -58,20 +58,22 @@ class DatabaseSeeder extends Seeder
         });
 
         $nodes = collect([
-            ['code' => 'TRF-006', 'name' => 'Central (Pob.)', 'type' => 'transformer', 'status' => 'outage', 'latitude' => 12.8735, 'longitude' => 124.0077, 'capacity_kw' => 250],
-            ['code' => 'TRF-014', 'name' => 'Rizal', 'type' => 'pole', 'status' => 'outage', 'latitude' => 12.8786, 'longitude' => 124.0274, 'capacity_kw' => 150],
-            ['code' => 'TRF-004', 'name' => 'Casay', 'type' => 'transformer', 'status' => 'warning', 'latitude' => 12.8375, 'longitude' => 124.0582, 'capacity_kw' => 200],
-            ['code' => 'TRF-007', 'name' => 'Cogon', 'type' => 'transformer', 'status' => 'warning', 'latitude' => 12.8521, 'longitude' => 124.0390, 'capacity_kw' => 200],
-            ['code' => 'TRF-001', 'name' => 'Adovis (Pob.)', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8659, 'longitude' => 124.0112, 'capacity_kw' => 250],
-            ['code' => 'TRF-003', 'name' => 'Burgos', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8764, 'longitude' => 124.0461, 'capacity_kw' => 250],
-            ['code' => 'TRF-010', 'name' => 'Inlagadian', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8136, 'longitude' => 124.0606, 'capacity_kw' => 200],
-            ['code' => 'TRF-016', 'name' => 'San Isidro', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8466, 'longitude' => 124.0121, 'capacity_kw' => 200],
-            ['code' => 'TRF-018', 'name' => 'San Pascual', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8792, 'longitude' => 124.0608, 'capacity_kw' => 250],
-            ['code' => 'TRF-019', 'name' => 'Santa Cruz', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8987, 'longitude' => 124.0396, 'capacity_kw' => 200],
+            // Added mac_address to all nodes for API testing
+            ['code' => 'TRF-006', 'mac_address' => 'AA:BB:CC:DD:EE:01', 'name' => 'Central (Pob.)', 'type' => 'transformer', 'status' => 'power_loss', 'latitude' => 12.8735, 'longitude' => 124.0077, 'capacity_kw' => 250],
+            ['code' => 'TRF-014', 'mac_address' => 'AA:BB:CC:DD:EE:02', 'name' => 'Rizal', 'type' => 'pole', 'status' => 'power_loss', 'latitude' => 12.8786, 'longitude' => 124.0274, 'capacity_kw' => 150],
+            ['code' => 'TRF-004', 'mac_address' => 'AA:BB:CC:DD:EE:03', 'name' => 'Casay', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8375, 'longitude' => 124.0582, 'capacity_kw' => 200],
+            ['code' => 'TRF-007', 'mac_address' => 'AA:BB:CC:DD:EE:04', 'name' => 'Cogon', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8521, 'longitude' => 124.0390, 'capacity_kw' => 200],
+            ['code' => 'TRF-001', 'mac_address' => 'AA:BB:CC:DD:EE:05', 'name' => 'Adovis (Pob.)', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8659, 'longitude' => 124.0112, 'capacity_kw' => 250],
+            ['code' => 'TRF-003', 'mac_address' => 'AA:BB:CC:DD:EE:06', 'name' => 'Burgos', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8764, 'longitude' => 124.0461, 'capacity_kw' => 250],
+            ['code' => 'TRF-010', 'mac_address' => 'AA:BB:CC:DD:EE:07', 'name' => 'Inlagadian', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8136, 'longitude' => 124.0606, 'capacity_kw' => 200],
+            ['code' => 'TRF-016', 'mac_address' => 'AA:BB:CC:DD:EE:08', 'name' => 'San Isidro', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8466, 'longitude' => 124.0121, 'capacity_kw' => 200],
+            ['code' => 'TRF-018', 'mac_address' => 'AA:BB:CC:DD:EE:09', 'name' => 'San Pascual', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8792, 'longitude' => 124.0608, 'capacity_kw' => 250],
+            ['code' => 'TRF-019', 'mac_address' => 'AA:BB:CC:DD:EE:10', 'name' => 'Santa Cruz', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8987, 'longitude' => 124.0396, 'capacity_kw' => 200],
         ])->mapWithKeys(function (array $data) use ($barangays) {
             $node = GridNode::updateOrCreate(
                 ['code' => $data['code']],
-                $data + ['barangay_id' => $barangays->get($data['name'])?->id],
+                // Added last_ping_at to simulate active hardware
+                $data + ['barangay_id' => $barangays->get($data['name'])?->id, 'last_ping_at' => now()],
             );
 
             return [$data['code'] => $node];

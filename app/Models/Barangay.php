@@ -14,6 +14,7 @@ class Barangay extends Model
         'name',
         'municipality',
         'province',
+        'cooperative', 
         'boundary_reference',
     ];
 

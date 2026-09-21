@@ -11,15 +11,17 @@ class GridNode extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
+protected $fillable = [
         'barangay_id',
         'code',
+        'mac_address',
         'name',
         'type',
         'status',
         'latitude',
         'longitude',
         'capacity_kw',
+        'last_ping_at',
     ];
 
     protected function casts(): array
@@ -27,6 +29,7 @@ class GridNode extends Model
         return [
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'last_ping_at' => 'datetime',
         ];
     }
 

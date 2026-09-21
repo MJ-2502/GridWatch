@@ -1,3 +1,8 @@
+const user = window.AuthUser;
+
+console.log(user.role);     // 'admin', 'dispatcher', 'consumer', or 'guest'
+console.log(user.district); // e.g. 'Casiguran'
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     CircleMarker,
@@ -6,6 +11,7 @@ import {
     Popup,
     TileLayer,
     useMap,
+    LayersControl
 } from "react-leaflet";
 import L from "leaflet";
 import {
@@ -283,12 +289,12 @@ export default function DispatcherDashboard() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [showAlert, setShowAlert] = useState(true);
     const [detailNode, setDetailNode] = useState(null);
-    const [regionSummary, setRegionSummary] = useState(null); // NEW: State for summary modal
+    const [regionSummary, setRegionSummary] = useState(null);
     const [dispatchMessage, setDispatchMessage] = useState("");
     const scope = scopes[scopeKey];
     const [activeSection, setActiveSection] = useState("Network map");
     const [barangayFeaturesList, setBarangayFeaturesList] = useState([]); 
-    
+    const [liveStatuses, setLiveStatuses] = useState([]);
     // NEW: Reference to manage the click delay timer
     const clickTimerRef = useRef(null);
 
@@ -317,11 +323,40 @@ export default function DispatcherDashboard() {
         // 3. Otherwise, fetch the new data
         let isMounted = true;
         loadBarangayFeatures(scope, municipality).then(features => {
-            if (isMounted) setBarangayFeaturesList(features);
+            if (isMounted) { 
+                // MERGE: Inject the Laravel colors into the GeoJSON features
+                const mergedFeatures = features.map(feature => {
+                    const brgyName = feature.properties?.ADM4_EN || feature.properties?.NAME_3 || "Barangay";
+                    
+                    const liveData = liveStatuses.find(d => 
+                        municipalityKey(d.name) === municipalityKey(brgyName) &&
+                        municipalityKey(d.municipality) === municipalityKey(municipality)
+                    );
+                    
+                    return {
+                        ...feature,
+                        properties: {
+                            ...feature.properties,
+                            // Default to your dark theme color if nominal, otherwise use the API color
+                            fillColor: liveData && liveData.status !== 'normal' ? liveData.color : "#0d1b20",
+                            fillOpacity: liveData && liveData.status !== 'normal' ? 0.6 : 0.1,
+                            status: liveData ? liveData.status : "normal"
+                        }
+                    };
+                });
+                setBarangayFeaturesList(mergedFeatures);
+            }
         });
 
         return () => { isMounted = false; };
     }, [scope, municipality]);
+
+    useEffect(() => {
+        fetch("/api/map/status", { headers: { "Accept": "application/json" } })
+            .then((response) => (response.ok ? response.json() : []))
+            .then((payload) => setLiveStatuses(payload))
+            .catch(() => setLiveStatuses([]));
+    }, []);
 
     const barangays = useMemo(
         () => ({
@@ -333,15 +368,12 @@ export default function DispatcherDashboard() {
 
     const alertNode = nodes.find((node) => node.id === "TRF-006");
 
-    const barangayStyle = useMemo(
-        () => ({
-            color: scope.color,
-            weight: 0.5,
-            fillColor: "#0d1b20",
-            fillOpacity: 0.1,
-        }),
-        [scope],
-    );
+    const getDynamicBarangayStyle = (feature) => ({
+        color: scope.color,
+        weight: 0.5,
+        fillColor: feature?.properties?.fillColor || "#0d1b20",
+        fillOpacity: feature?.properties?.fillOpacity || 0.1,
+    });
     const barangaySelectedStyle = useMemo(
         () => ({
             color: "#f5f8f6",
@@ -355,7 +387,7 @@ export default function DispatcherDashboard() {
 
     const clearSelectedBarangay = () => {
         if (selectedLayerRef.current) {
-            selectedLayerRef.current.setStyle(barangayStyle);
+            selectedLayerRef.current.setStyle(getDynamicBarangayStyle(selectedLayerRef.current.feature));
             selectedLayerRef.current = null;
         }
     };
@@ -375,14 +407,12 @@ export default function DispatcherDashboard() {
                 event.target.setStyle({
                     weight: 2,
                     color: "#f5f8f6",
-                    fillColor: scope.color,
-                    fillOpacity: 0.45,
                 });
                 event.target.bringToFront();
             },
             mouseout: (event) => {
                 if (selectedLayerRef.current === event.target) return;
-                event.target.setStyle(barangayStyle);
+                event.target.setStyle(getDynamicBarangayStyle());
             },
             // NEW: Split single and double click logic for Barangays
             click: (event) => {
@@ -583,12 +613,33 @@ export default function DispatcherDashboard() {
                             center={[12.85, 124.05]}
                             zoom={10}
                             zoomControl
-                            doubleClickZoom={false} // NEW: Stop Leaflet from zooming in on double-click
+                            doubleClickZoom={false}
                         >
-                            <TileLayer
-                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                attribution="&copy; OpenStreetMap contributors"
-                            />
+
+                            <LayersControl position="bottomright">
+                                
+                                <LayersControl.BaseLayer checked name="Google Satellite">
+                                    <TileLayer
+                                        url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                                        attribution="&copy; Google"
+                                    />
+                                </LayersControl.BaseLayer>
+
+                                <LayersControl.BaseLayer name="Dark Theme">
+                                    <TileLayer
+                                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                                        attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+                                    />
+                                </LayersControl.BaseLayer>
+
+                                <LayersControl.BaseLayer name="Street Map">
+                                    <TileLayer
+                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                        attribution="&copy; OpenStreetMap contributors"
+                                    />
+                                </LayersControl.BaseLayer>
+
+                            </LayersControl>
                             
                             <FitGeoJson
                                 data={
@@ -652,7 +703,7 @@ export default function DispatcherDashboard() {
                                         <GeoJSON
                                             key={`${scopeKey}-${municipality}-barangays`}
                                             data={barangays}
-                                            style={barangayStyle}
+                                            style={getDynamicBarangayStyle}
                                             onEachFeature={onEachBarangay}
                                         />
                                     )}

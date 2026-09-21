@@ -13,10 +13,12 @@ return new class extends Migration
             $table->string('name');
             $table->string('municipality');
             $table->string('province')->default('Sorsogon');
-            $table->string('boundary_reference')->nullable();
+            $table->string('cooperative'); // e.g., 'SORECO 1' or 'SORECO 2'
+            $table->string('boundary_reference')->nullable(); // Good for linking GeoJSON files
             $table->timestamps();
 
-            $table->unique(['name', 'municipality', 'province']);
+            // Ensure that each combination of name, municipality, and cooperative is unique
+            $table->unique(['name', 'municipality', 'cooperative']);
         });
     }
 

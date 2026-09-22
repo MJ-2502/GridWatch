@@ -1,9 +1,11 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
+use Illuminate\Support\Facades\Auth;
 /*
-| Public Routes
+|--------------------------------------------------------------------------
+| Public Portal
+|--------------------------------------------------------------------------
 */
 Route::view('/', 'portal')->name('portal');
 
@@ -12,24 +14,29 @@ Route::middleware('guest')->group(function () {
 });
 
 /*
-| Authenticated Shared Routes
+|--------------------------------------------------------------------------
+| Authenticated Route Dispatcher
+|--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::view('/dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', function () {
+        // Use the Facade to make VS Code happy!
+        $user = \Illuminate\Support\Facades\Auth::user();
+
+        // Check the role property directly
+        if ($user->role === 'admin' || $user->role === 'dispatcher') {
+            return view('dashboard');
+        }
+
+        // Guests and Consumers are redirected to the Public Portal
+        return redirect()->route('portal');
+    })->name('dashboard');
 });
 
-/*
-| Role Protected Route Groups
-*/
-
-// Admin Only (e.g. Create Dispatchers and assign them to districts)
-Route::middleware(['auth', 'role:admin'])->group(function () {
-    // Route::post('/admin/create-dispatcher', [AdminController::class, 'storeDispatcher']);
+Route::get('/quick-logout', function (\Illuminate\Http\Request $request) {
+    Auth::guard('web')->logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+    return redirect('/');
 });
-
-// Dispatcher Only (e.g. Verify guests in their designated district)
-Route::middleware(['auth', 'role:dispatcher,admin'])->group(function () {
-    // Route::post('/dispatcher/verify-consumer/{user}', [DispatcherController::class, 'verifyConsumer']);
-});
-
 require __DIR__.'/auth.php';

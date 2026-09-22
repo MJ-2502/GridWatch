@@ -28,9 +28,16 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
-    }
+        $user = Auth::user();
 
+        // 1. Admins and Dispatchers strictly go to the Operations Dashboard
+        if ($user->role === 'admin' || $user->role === 'dispatcher') {
+            return redirect()->route('dashboard');
+        }
+
+        // 2. Guests & Consumers strictly go to the public portal
+        return redirect()->route('portal');
+    }
     /**
      * Destroy an authenticated session.
      */

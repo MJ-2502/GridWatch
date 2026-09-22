@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title', 'Dispatcher console · GridWatch')
 @section('page', 'dashboard')
-<script>
-    window.AuthUser = @json(auth()->user());
-</script>
+
+<!-- Pass the user data into the HTML dataset -->
+<div id="app" data-page="dashboard" data-user="{{ json_encode(auth()->user()) }}"></div>

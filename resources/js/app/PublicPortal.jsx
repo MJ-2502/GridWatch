@@ -50,6 +50,7 @@ function absoluteTime(value) {
 }
 
 export default function PublicPortal() {
+  const authUser = window.AuthUser || null;
   const [incidents, setIncidents] = useState([]);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
@@ -216,9 +217,76 @@ export default function PublicPortal() {
       });
     }, 2000);
   };
-
   return (
     <div className="dd-portal">
+      {/* Top Header */}
+      <header className="dd-header">
+        <div className="dd-nav-container">
+          <a className="dd-brand" href="/">
+            <div>
+              <span className="dd-brand-title">GridWatch</span>
+              <span className="dd-brand-sub">Sorsogon Outage Monitor</span>
+            </div>
+          </a>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            {authUser ? (
+              <>
+                <div style={{ fontSize: "12px", textAlign: "right" }}>
+                  <span style={{ color: "white", fontWeight: "600", display: "block" }}>
+                    {authUser.name}
+                  </span>
+                  <span style={{ color: authUser.is_verified ? "#10b981" : "#f59e0b", fontSize: "11px" }}>
+                    {authUser.is_verified ? "Verified Consumer" : "Guest (Pending Verification)"}
+                  </span>
+                </div>
+                {/* NEW: Logout Button */}
+                <a href="/quick-logout" className="dd-badge" style={{ border: "1px solid var(--dd-card-border)", color: "var(--dd-muted)", textDecoration: "none" }}>
+                  Logout
+                </a>
+              </>
+            ) : (
+              <a href="/login" className="dd-badge badge-planned" style={{ textDecoration: "none" }}>
+                Login
+              </a>
+            )}
+
+            <button
+              type="button"
+              className="dd-badge badge-warn"
+              onClick={loadIncidents}
+              style={{ cursor: "pointer", border: "none" }}
+            >
+              {status === "loading" ? "Syncing..." : "Live"}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Warning banner if logged in as an unverified Guest */}
+      {authUser && authUser.role === "guest" && !authUser.is_verified && (
+        <div style={{ background: "rgba(245, 158, 11, 0.15)", borderBottom: "1px solid rgba(245, 158, 11, 0.3)", padding: "10px 16px", fontSize: "13px", color: "#fcd34d", textAlign: "center" }}>
+          <strong>Account Pending Approval:</strong> Your registration for {authUser.district || "your district"} is awaiting verification by a district dispatcher.
+        </div>
+      )}
+
+            {/* Scheduled Power Interruption Banner Alert */}
+      {scheduledAdvisories.length > 0 && (
+        <div className="dd-announcement-bar">
+          <div className="dd-announcement-inner">
+            <div>
+              <strong>Scheduled Interruption:</strong> {scheduledAdvisories[0].title} ({scheduledAdvisories[0].date})
+            </div>
+            <button
+              onClick={() => setActiveTab("advisories")}
+              style={{ background: "none", border: "none", color: "#60a5fa", textDecoration: "underline", cursor: "pointer", fontSize: "12px" }}
+            >
+              Details
+            </button>
+          </div>
+        </div>
+      )}
+
       <style>{`
         :root {
           --dd-bg: #0f141c;
@@ -659,42 +727,6 @@ export default function PublicPortal() {
         }
       `}</style>
 
-      {/* Top Header */}
-      <header className="dd-header">
-        <div className="dd-nav-container">
-          <a className="dd-brand" href="/">
-            <div>
-              <span className="dd-brand-title">GridWatch</span>
-              <span className="dd-brand-sub">Sorsogon Outage Monitor</span>
-            </div>
-          </a>
-          <button
-            type="button"
-            className="dd-badge badge-warn"
-            onClick={loadIncidents}
-            style={{ cursor: "pointer", border: "none" }}
-          >
-            {status === "loading" ? "Syncing..." : "Live"}
-          </button>
-        </div>
-      </header>
-
-      {/* Scheduled Power Interruption Banner Alert */}
-      {scheduledAdvisories.length > 0 && (
-        <div className="dd-announcement-bar">
-          <div className="dd-announcement-inner">
-            <div>
-              <strong>Scheduled Interruption:</strong> {scheduledAdvisories[0].title} ({scheduledAdvisories[0].date})
-            </div>
-            <button
-              onClick={() => setActiveTab("advisories")}
-              style={{ background: "none", border: "none", color: "#60a5fa", textDecoration: "underline", cursor: "pointer", fontSize: "12px" }}
-            >
-              Details
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Downdetector Hero Status */}
       <section className="dd-hero">

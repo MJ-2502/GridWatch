@@ -6,7 +6,6 @@ use App\Http\Controllers\GridNodeController;
 use App\Http\Controllers\Api\IoTNodeController;
 use App\Http\Controllers\Api\PublicReportController;
 use App\Http\Controllers\Api\MapController;
-use App\Http\Controllers\Api\CartoController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -24,4 +23,3 @@ Route::post('/reports', [PublicReportController::class, 'store']);
 
 Route::get('/map/status', [MapController::class, 'status']);
 
-Route::get('/carto/barangays', [CartoController::class, 'getBarangays']);

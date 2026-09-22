@@ -15,26 +15,57 @@ class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
+        // 1. Admin (Full system access)
         $manager = User::updateOrCreate(
             ['email' => 'manager@gridwatch.test'],
             [
-                'name' => 'John Doe',
+                'name' => 'System Admin',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
+                'role' => 'admin',
+                'district' => null,
+                'is_verified' => true,
             ],
         );
 
+        // 2. Dispatcher (Locked to Casiguran)
         $operator = User::updateOrCreate(
             ['email' => 'operator@gridwatch.test'],
             [
-                'name' => 'GridWatch Operator',
+                'name' => 'Casiguran Dispatch',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
+                'role' => 'dispatcher',
+                'district' => 'Casiguran',
+                'is_verified' => true,
+            ],
+        );
+
+        // 3. Verified Consumer (View only, can report)
+        $consumer = User::updateOrCreate(
+            ['email' => 'consumer@gridwatch.test'],
+            [
+                'name' => 'Juan Dela Cruz',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+                'role' => 'consumer',
+                'district' => 'Casiguran',
+                'is_verified' => true,
+            ],
+        );
+
+        // 4. Unverified Guest (Waiting for approval)
+        $guest = User::updateOrCreate(
+            ['email' => 'guest@gridwatch.test'],
+            [
+                'name' => 'New Resident',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+                'role' => 'guest',
+                'district' => 'Casiguran',
+                'is_verified' => false,
             ],
         );
 
@@ -58,7 +89,6 @@ class DatabaseSeeder extends Seeder
         });
 
         $nodes = collect([
-            // Added mac_address to all nodes for API testing
             ['code' => 'TRF-006', 'mac_address' => 'AA:BB:CC:DD:EE:01', 'name' => 'Central (Pob.)', 'type' => 'transformer', 'status' => 'power_loss', 'latitude' => 12.8735, 'longitude' => 124.0077, 'capacity_kw' => 250],
             ['code' => 'TRF-014', 'mac_address' => 'AA:BB:CC:DD:EE:02', 'name' => 'Rizal', 'type' => 'pole', 'status' => 'power_loss', 'latitude' => 12.8786, 'longitude' => 124.0274, 'capacity_kw' => 150],
             ['code' => 'TRF-004', 'mac_address' => 'AA:BB:CC:DD:EE:03', 'name' => 'Casay', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8375, 'longitude' => 124.0582, 'capacity_kw' => 200],
@@ -72,7 +102,6 @@ class DatabaseSeeder extends Seeder
         ])->mapWithKeys(function (array $data) use ($barangays) {
             $node = GridNode::updateOrCreate(
                 ['code' => $data['code']],
-                // Added last_ping_at to simulate active hardware
                 $data + ['barangay_id' => $barangays->get($data['name'])?->id, 'last_ping_at' => now()],
             );
 
@@ -101,6 +130,5 @@ class DatabaseSeeder extends Seeder
                 ],
             );
         }
-
     }
 }

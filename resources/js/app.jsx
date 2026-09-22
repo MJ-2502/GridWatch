@@ -12,6 +12,9 @@ const root = document.getElementById("app");
 const Page = pages[root?.dataset.page];
 
 if (root && Page) {
+  const userData = root.dataset.user;
+  window.AuthUser = userData ? JSON.parse(userData) : null;
+  
   createRoot(root).render(
     <Suspense fallback={null}>
       <Page />

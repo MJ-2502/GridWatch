@@ -4,6 +4,7 @@ console.log(user.role);     // 'admin', 'dispatcher', 'consumer', or 'guest'
 console.log(user.district); // e.g. 'Casiguran'
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "@iconify/react";
 import {
     CircleMarker,
     GeoJSON,
@@ -53,8 +54,18 @@ function pointInGeometry(point, geometry) {
 function FitGeoJson({ data }) {
     const map = useMap();
     useEffect(() => {
-        if (data.features.length)
-            map.fitBounds(L.geoJSON(data).getBounds(), { padding: [20, 20] });
+        if (data.features.length) {
+            // flyToBounds with a short, fixed duration gives one smooth, linear
+            // pan+zoom to the target — unlike fitBounds's default animation,
+            // which can zoom out further than necessary before zooming back in
+            // when the old and new bounds are far apart, and unlike an instant
+            // cut (animate: false), which has no transition at all.
+            map.flyToBounds(L.geoJSON(data).getBounds(), {
+                padding: [20, 20],
+                duration: 0.8,
+                easeLinearity: 0.6,
+            });
+        }
     }, [data, map]);
     return null;
 }
@@ -66,7 +77,9 @@ function NodePopup({ node, onDetails, onDispatch }) {
         <div className="node-popup">
             <div className="node-popup-head">
                 <span>{node.id}</span>
-                <b className={`node-status ${node.status}`}>● {statusLabel}</b>
+                <b className={`node-status ${node.status}`}>
+                    <Icon icon="lucide:circle-dot" width="10" height="10" aria-hidden="true" /> {statusLabel}
+                </b>
             </div>
             <h3>{node.name}</h3>
             <div className="node-popup-grid">
@@ -100,7 +113,7 @@ function NodePopup({ node, onDetails, onDispatch }) {
                             className="details-link"
                             onClick={() => onDetails(node)}
                         >
-                            MORE DETAILS ›
+                            MORE DETAILS <Icon icon="lucide:chevron-right" width="12" height="12" aria-hidden="true" />
                         </button>
                     </strong>
                 </span>
@@ -114,7 +127,7 @@ function NodePopup({ node, onDetails, onDispatch }) {
                     className="dispatch-button"
                     onClick={() => onDispatch(node)}
                 >
-                    ▶ DISPATCH CREW TO {node.name.toUpperCase()}
+                    <Icon icon="lucide:send" width="14" height="14" aria-hidden="true" /> DISPATCH CREW TO {node.name.toUpperCase()}
                 </button>
             )}
         </div>
@@ -273,7 +286,7 @@ function DetailModal({ node, scope, onClose, onDispatch }) {
                             onClose();
                         }}
                     >
-                        ▶ DISPATCH CREW TO {node.name.toUpperCase()}
+                        <Icon icon="lucide:send" width="14" height="14" aria-hidden="true" /> DISPATCH CREW TO {node.name.toUpperCase()}
                     </button>
                 )}
             </section>
@@ -282,7 +295,9 @@ function DetailModal({ node, scope, onClose, onDispatch }) {
 }
 
 export default function DispatcherDashboard() {
-    const [scopeKey, setScopeKey] = useState("soreco1");
+    // "all" = both territories shown together (the fresh-login default).
+    // Any other value is a single scopes key ("soreco1" / "soreco2") — focused view.
+    const [scopeKey, setScopeKey] = useState("all");
     const [municipality, setMunicipality] = useState("");
     const [incidents, setIncidents] = useState([]);
     const [nodes, setNodes] = useState([]);
@@ -291,22 +306,74 @@ export default function DispatcherDashboard() {
     const [detailNode, setDetailNode] = useState(null);
     const [regionSummary, setRegionSummary] = useState(null);
     const [dispatchMessage, setDispatchMessage] = useState("");
-    const scope = scopes[scopeKey];
+    const isAllTerritories = scopeKey === "all";
+    // scope is null while viewing both territories together — nothing downstream
+    // that touches `scope` directly can run in that mode (guarded below).
+    const scope = isAllTerritories ? null : scopes[scopeKey];
     const [activeSection, setActiveSection] = useState("Network map");
     const [barangayFeaturesList, setBarangayFeaturesList] = useState([]); 
     const [liveStatuses, setLiveStatuses] = useState([]);
     // NEW: Reference to manage the click delay timer
     const clickTimerRef = useRef(null);
 
-    const municipalities = useMemo(() => municipalityNames(scope), [scope]);
-    
-    const boundaries = useMemo(
-        () => ({
-            type: "FeatureCollection",
-            features: municipalityFeatures(scope, municipality),
-        }),
-        [scope, municipality],
+    const municipalities = useMemo(
+        () => (scope ? municipalityNames(scope) : []),
+        [scope],
     );
+
+    // Counts per territory, computed from the real data instead of hardcoded
+    // "8"/"7" strings, so this stays correct if coverage data ever changes.
+    const territoryMunicipalityCounts = useMemo(
+        () =>
+            Object.fromEntries(
+                Object.entries(scopes).map(([key, value]) => [
+                    key,
+                    municipalityNames(value).length,
+                ]),
+            ),
+        [],
+    );
+    const totalMunicipalityCount = useMemo(
+        () =>
+            Object.values(territoryMunicipalityCounts).reduce(
+                (sum, count) => sum + count,
+                0,
+            ),
+        [territoryMunicipalityCounts],
+    );
+
+    const boundaries = useMemo(() => {
+        if (isAllTerritories) {
+            // Combine every territory's municipality outlines into one collection,
+            // tagging each feature with its own territory's color and key so the
+            // map can render both palettes at once and drill-down still knows
+            // which territory a double-clicked municipality belongs to.
+            const combined = Object.entries(scopes).flatMap(([key, value]) =>
+                municipalityFeatures(value, "").map((feature) => ({
+                    ...feature,
+                    properties: {
+                        ...feature.properties,
+                        __scopeColor: value.color,
+                        __scopeKey: key,
+                    },
+                })),
+            );
+            return { type: "FeatureCollection", features: combined };
+        }
+        return {
+            type: "FeatureCollection",
+            features: municipalityFeatures(scope, municipality).map(
+                (feature) => ({
+                    ...feature,
+                    properties: {
+                        ...feature.properties,
+                        __scopeColor: scope.color,
+                        __scopeKey: scopeKey,
+                    },
+                }),
+            ),
+        };
+    }, [isAllTerritories, scopeKey, scope, municipality]);
 
     // Fetch barangays asynchronously when a municipality is selected
     useEffect(() => {
@@ -369,7 +436,7 @@ export default function DispatcherDashboard() {
     const alertNode = nodes.find((node) => node.id === "TRF-006");
 
     const getDynamicBarangayStyle = (feature) => ({
-        color: scope.color,
+        color: scope?.color || "#68817b",
         weight: 0.5,
         fillColor: feature?.properties?.fillColor || "#0d1b20",
         fillOpacity: feature?.properties?.fillOpacity || 0.1,
@@ -378,7 +445,7 @@ export default function DispatcherDashboard() {
         () => ({
             color: "#f5f8f6",
             weight: 2,
-            fillColor: scope.color,
+            fillColor: scope?.color || "#68817b",
             fillOpacity: 0.5,
         }),
         [scope],
@@ -468,9 +535,6 @@ export default function DispatcherDashboard() {
             .catch(() => setNodes([]));
     }, []);
     
-    // Clear municipality when scope (SORECO 1/2) changes
-    useEffect(() => setMunicipality(""), [scopeKey]);
-
     const dispatchCrew = (node) => {
         setDispatchMessage(`Crew dispatched to ${node.name}`);
         window.setTimeout(() => setDispatchMessage(""), 3500);
@@ -490,14 +554,16 @@ export default function DispatcherDashboard() {
                 </div>
                 <div className="topbar-meta">
                     <span className="sync-dot" />
-                    <span>07:22:42</span>
-                    <button
+                    <span>LIVE</span>
+                    {/* NEW: Replaced Avatar with Logout Link */}
+                    <a
+                        href="/quick-logout"
                         className="avatar"
-                        type="button"
-                        aria-label="Open profile"
+                        style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}
+                        title="Logout"
                     >
-                        AR
-                    </button>
+                        OUT
+                    </a>
                 </div>
             </header>
             
@@ -525,7 +591,19 @@ export default function DispatcherDashboard() {
                             type="button"
                         >
                             <span className="sidebar-nav-icon">
-                                {["◈", "!", "⌁", "▤"][index]}
+                                <Icon
+                                    icon={
+                                        [
+                                            "lucide:map",
+                                            "lucide:alert-triangle",
+                                            "lucide:radio-tower",
+                                            "lucide:users",
+                                        ][index]
+                                    }
+                                    width="14"
+                                    height="14"
+                                    aria-hidden="true"
+                                />
                             </span>
                             <span>{item}</span>
                             {item !== "Network map" && <em>SOON</em>}
@@ -535,11 +613,13 @@ export default function DispatcherDashboard() {
                 <div className="sidebar-rule" />
                 <div className="sidebar-context">
                     <span className="sidebar-kicker">SERVICE TERRITORY</span>
-                    <strong>{scope.label}</strong>
+                    <strong>
+                        {isAllTerritories ? "All territories" : scope.label}
+                    </strong>
                     <small>
-                        {scopeKey === "soreco1"
-                            ? "8 municipalities"
-                            : "7 municipalities"}
+                        {isAllTerritories
+                            ? `${totalMunicipalityCount} municipalities`
+                            : `${territoryMunicipalityCounts[scopeKey]} municipalities`}
                     </small>
                 </div>
                 <div className="sidebar-territories">
@@ -547,20 +627,24 @@ export default function DispatcherDashboard() {
                         <button
                             key={key}
                             className={
-                                scopeKey === key
+                                isAllTerritories || scopeKey === key
                                     ? "territory-button active"
                                     : "territory-button"
                             }
                             style={{ "--territory-color": value.color }}
-                            onClick={() => setScopeKey(key)}
+                            onClick={() => {
+                                // Clicking the territory that's already solely focused
+                                // returns to the combined "all" view; clicking any
+                                // other territory (including from "all") focuses it.
+                                setScopeKey(scopeKey === key ? "all" : key);
+                                setMunicipality("");
+                            }}
                             type="button"
                         >
                             <i />
                             {value.label}
                             <small>
-                                {key === "soreco1"
-                                    ? "8 municipalities"
-                                    : "7 municipalities"}
+                                {territoryMunicipalityCounts[key]} municipalities
                             </small>
                         </button>
                     ))}
@@ -570,7 +654,9 @@ export default function DispatcherDashboard() {
                     type="button"
                     onClick={() => setActiveSection("Settings")}
                 >
-                    <span>⚙</span>
+                    <span>
+                        <Icon icon="lucide:settings" width="14" height="14" aria-hidden="true" />
+                    </span>
                     <span>Settings</span>
                     <em>SOON</em>
                 </button>
@@ -597,9 +683,19 @@ export default function DispatcherDashboard() {
                                 onChange={(event) =>
                                     setMunicipality(event.target.value)
                                 }
+                                disabled={isAllTerritories}
                                 aria-label="Select municipality"
+                                title={
+                                    isAllTerritories
+                                        ? "Focus a service territory to drill into a municipality"
+                                        : undefined
+                                }
                             >
-                                <option value="">All municipalities</option>
+                                <option value="">
+                                    {isAllTerritories
+                                        ? "Select a territory first"
+                                        : "All municipalities"}
+                                </option>
                                 {municipalities.map((name) => (
                                     <option key={name} value={name}>
                                         {name}
@@ -618,7 +714,7 @@ export default function DispatcherDashboard() {
 
                             <LayersControl position="bottomright">
                                 
-                                <LayersControl.BaseLayer checked name="Google Satellite">
+                                <LayersControl.BaseLayer name="Google Satellite">
                                     <TileLayer
                                         url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
                                         attribution="&copy; Google"
@@ -632,7 +728,7 @@ export default function DispatcherDashboard() {
                                     />
                                 </LayersControl.BaseLayer>
 
-                                <LayersControl.BaseLayer name="Street Map">
+                                <LayersControl.BaseLayer checked name="Street Map">
                                     <TileLayer
                                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                                         attribution="&copy; OpenStreetMap contributors"
@@ -654,12 +750,12 @@ export default function DispatcherDashboard() {
                                 <GeoJSON
                                     key={`${scopeKey}-municipalities-overview`}
                                     data={boundaries}
-                                    pathOptions={{
-                                        color: scope.color,
+                                    style={(feature) => ({
+                                        color: feature.properties.__scopeColor,
                                         weight: 1.5,
-                                        fillColor: scope.color,
-                                        fillOpacity: 0.15, 
-                                    }}
+                                        fillColor: feature.properties.__scopeColor,
+                                        fillOpacity: 0.15,
+                                    })}
                                     onEachFeature={(feature, layer) => {
                                         const name = feature.properties?.ADM3_EN;
                                         layer.bindTooltip(name, { 
@@ -678,6 +774,11 @@ export default function DispatcherDashboard() {
                                             },
                                             dblclick: (e) => {
                                                 if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+                                                // If viewing both territories, focus the one this
+                                                // municipality belongs to at the same time as drilling in.
+                                                if (isAllTerritories) {
+                                                    setScopeKey(feature.properties.__scopeKey);
+                                                }
                                                 setMunicipality(name);
                                             }
                                         });
@@ -778,7 +879,9 @@ export default function DispatcherDashboard() {
                 onDispatch={dispatchCrew}
             />
             {dispatchMessage && (
-                <div className="dispatch-toast">◉ {dispatchMessage}</div>
+                <div className="dispatch-toast">
+                    <Icon icon="lucide:radio" width="14" height="14" aria-hidden="true" /> {dispatchMessage}
+                </div>
             )}
         </main>
     );

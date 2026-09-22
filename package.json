@@ -7,6 +7,8 @@
         "dev": "vite"
     },
     "dependencies": {
+        "@iconify-json/lucide": "^1.2.135",
+        "@iconify/react": "^6.0.2",
         "leaflet": "^1.9.4",
         "leaflet.gridlayer.googlemutant": "^0.16.0",
         "react": "^19.3.0",

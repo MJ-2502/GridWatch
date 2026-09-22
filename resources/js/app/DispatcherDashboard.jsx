@@ -12,7 +12,9 @@ import {
     Popup,
     TileLayer,
     useMap,
-    LayersControl
+    LayersControl,
+    Pane
+
 } from "react-leaflet";
 import L from "leaflet";
 import {
@@ -528,11 +530,23 @@ export default function DispatcherDashboard() {
             .then((payload) => setIncidents(payload.data || []))
             .catch(() => setIncidents([]));
     }, []);
+
     useEffect(() => {
-        fetch("/api/grid-nodes")
-            .then((response) => (response.ok ? response.json() : { data: [] }))
-            .then((payload) => setNodes(payload.data || []))
-            .catch(() => setNodes([]));
+        const fetchNodes = () => {
+            fetch("/api/grid-nodes", { headers: { "Accept": "application/json" } })
+                .then((response) => (response.ok ? response.json() : { data: [] }))
+                .then((payload) => setNodes(payload.data || []))
+                .catch(() => setNodes([]));
+        };
+
+        // Fetch immediately on load
+        fetchNodes();
+
+        // Check for hardware updates every 5 seconds
+        const intervalId = setInterval(fetchNodes, 5000);
+
+        // Cleanup the timer if the dispatcher leaves the page
+        return () => clearInterval(intervalId);
     }, []);
     
     const dispatchCrew = (node) => {
@@ -811,45 +825,55 @@ export default function DispatcherDashboard() {
                                 </>
                             )}
 
-                            {nodes
-                                .filter(
-                                    (node) =>
-                                        !municipality ||
-                                        municipalityKey(node.municipality) ===
-                                            municipalityKey(municipality),
-                                )
-                                .map((node) => (
-                                    <CircleMarker
-                                        key={node.id}
-                                        center={[
-                                            node.latitude,
-                                            node.longitude,
-                                        ]}
-                                        radius={
-                                            node.status === "outage" ? 7 : 6
-                                        }
-                                        pathOptions={{
-                                            color: "#f5f8f6",
-                                            weight: 2,
-                                            fillColor:
-                                                node.status === "outage"
-                                                    ? "#ff4848"
-                                                    : node.status ===
-                                                        "unverified"
-                                                        ? "#f4a516"
-                                                        : "#23c56e",
-                                            fillOpacity: 1,
-                                        }}
-                                    >
-                                        <Popup>
-                                            <NodePopup
-                                                node={node}
-                                                onDetails={setDetailNode}
-                                                onDispatch={dispatchCrew}
-                                            />
-                                        </Popup>
-                                    </CircleMarker>
-                                ))}
+                            <Pane name="nodes" style={{ zIndex: 500 }}>
+                                {nodes
+                                    .filter(
+                                        (node) =>
+                                            !municipality ||
+                                            municipalityKey(node.municipality) ===
+                                                municipalityKey(municipality),
+                                    )
+                                    .map((node) => (
+                                        <CircleMarker
+                                            key={node.id}
+                                            center={[
+                                                node.latitude,
+                                                node.longitude,
+                                            ]}
+                                            radius={
+                                                node.status === "outage" ? 7 : 6
+                                            }
+                                            pathOptions={{
+                                                color: "#f5f8f6",
+                                                weight: 2,
+                                                fillColor:
+                                                    node.status === "outage"
+                                                        ? "#ff4848"
+                                                        : node.status ===
+                                                            "unverified"
+                                                            ? "#f4a516"
+                                                            : "#23c56e",
+                                                fillOpacity: 1,
+                                            }}
+                                        >
+                                            {/* Explicit pane override: without this the Popup inherits
+                                                the "nodes" Pane from its parent CircleMarker (via
+                                                react-leaflet's pane context) instead of Leaflet's own
+                                                popupPane, which is why it was stacking at the same
+                                                z-index level as the node markers themselves. */}
+                                            <Popup
+                                                className="node-popup-wrapper"
+                                                pane="popupPane"
+                                            >
+                                                <NodePopup
+                                                    node={node}
+                                                    onDetails={setDetailNode}
+                                                    onDispatch={dispatchCrew}
+                                                />
+                                            </Popup>
+                                        </CircleMarker>
+                                    ))}
+                            </Pane>
                         </MapContainer>
                         <div className="map-legend">
                             <span className="legend-swatch red" />

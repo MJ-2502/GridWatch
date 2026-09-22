@@ -13,6 +13,7 @@ return new class extends Migration
             $table->foreignId('barangay_id')->nullable()->constrained()->nullOnDelete();
             $table->string('code')->unique(); // Can be used as human-readable ID
             $table->string('mac_address')->unique()->nullable(); // The physical IoT hardware ID
+            $table->string('api_token', 64)->unique()->nullable();
             $table->string('name');
             $table->string('type')->default('substation');
             $table->string('status')->default('online'); // e.g., online, offline, power_loss

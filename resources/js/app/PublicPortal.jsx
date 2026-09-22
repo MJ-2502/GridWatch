@@ -1,15 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-// --- SORECO Service Areas ---
+import { scopes, municipalityNames, loadBarangayFeatures } from "./data/coverage";
+
+// --- SORECO Service Areas (Dynamically loaded from coverage.js) ---
 const SORECO_AREAS = {
-  SORECO_1: [
-    "Bulan", "Bulusan", "Casiguran", "Gubat", "Irosin", 
-    "Juban", "Magallanes", "Matnog", "Prieto Diaz", "Santa Magdalena"
-  ],
-  SORECO_2: [
-    "Sorsogon City (East District)", "Sorsogon City (West District)", 
-    "Castilla", "Donsol", "Pilar"
-  ]
+  SORECO_1: municipalityNames(scopes.soreco1).sort(),
+  SORECO_2: municipalityNames(scopes.soreco2).sort()
 };
 
 const SEVERITY = {
@@ -52,6 +48,7 @@ function absoluteTime(value) {
 export default function PublicPortal() {
   const authUser = window.AuthUser || null;
   const [incidents, setIncidents] = useState([]);
+  const [scheduledAdvisories, setScheduledAdvisories] = useState([]);
   const [status, setStatus] = useState("loading");
   const [query, setQuery] = useState("");
   const [refreshedAt, setRefreshedAt] = useState(null);
@@ -65,25 +62,31 @@ export default function PublicPortal() {
   // Reporting Form State
   const [reportData, setReportData] = useState({
     cooperative: "SORECO II",
-    municipality: "Sorsogon City (East District)",
+    municipality: SORECO_AREAS.SORECO_2[0] || "",
     barangay: "",
     issueType: "Total Power Loss",
     accountNo: "",
     remarks: ""
   });
 
-  // Mock Scheduled Power Interruption Banners
-  const [scheduledAdvisories, setScheduledAdvisories] = useState([
-    {
-      id: "adv-101",
-      coop: "SORECO II",
-      title: "Scheduled Feeder 2 Maintenance & Tree Trimming",
-      date: "Tomorrow, 8:00 AM - 5:00 PM",
-      areas: ["Sorsogon City (Cabid-an, Bibincahan, Pangpang)", "Castilla (Poblacion)"],
-      reason: "Substation transformer testing and vegetation management along 69kV transmission line.",
-      urgency: "planned"
+const [availableBarangays, setAvailableBarangays] = useState([]);
+
+  // NEW: Fetch exact barangays from coverage.js instead of database whenever the municipality changes
+  useEffect(() => {
+    if (reportData.municipality) {
+      const scope = reportData.cooperative === "SORECO II" ? scopes.soreco2 : scopes.soreco1;
+      loadBarangayFeatures(scope, reportData.municipality)
+        .then(features => {
+          const names = [...new Set(features.map(f => f.properties?.ADM4_EN).filter(Boolean))].sort();
+          setAvailableBarangays(names);
+          // Clear the selected barangay so the user is forced to pick a valid one
+          setReportData(prev => ({ ...prev, barangay: "" }));
+        })
+        .catch(() => setAvailableBarangays([]));
+    } else {
+      setAvailableBarangays([]);
     }
-  ]);
+  }, [reportData.municipality, reportData.cooperative]);
 
   // Downdetector 24h Hourly Report Volume (Mock data scaled by active incidents)
   const hourlyReportHistory = useMemo(() => {
@@ -203,19 +206,36 @@ export default function PublicPortal() {
 
   const handleReportSubmit = (e) => {
     e.preventDefault();
-    setReportSuccess(true);
-    setTimeout(() => {
-      setReportSuccess(false);
-      setIsReportModalOpen(false);
-      setReportData({
-        cooperative: "SORECO II",
-        municipality: "Sorsogon City (East District)",
-        barangay: "",
-        issueType: "Total Power Loss",
-        accountNo: "",
-        remarks: ""
-      });
-    }, 2000);
+
+    fetch("/api/public/reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(reportData)
+    })
+    .then(response => {
+      if (!response.ok) throw new Error("Failed to submit");
+      setReportSuccess(true);
+      loadIncidents(); // Refresh portal feed instantly
+
+      setTimeout(() => {
+        setReportSuccess(false);
+        setIsReportModalOpen(false);
+        setReportData({
+          cooperative: "SORECO II",
+          municipality: "Sorsogon City (East District)",
+          barangay: "",
+          issueType: "Total Power Loss",
+          accountNo: "",
+          remarks: ""
+        });
+      }, 2500);
+    })
+    .catch(error => {
+      alert("Error submitting report. Please try again.");
+    });
   };
   return (
     <div className="dd-portal">
@@ -960,7 +980,7 @@ export default function PublicPortal() {
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleReportSubmit}>
+<form onSubmit={handleReportSubmit}>
                 <div className="dd-form-group">
                   <label className="dd-label">Electric Cooperative</label>
                   <select
@@ -988,14 +1008,28 @@ export default function PublicPortal() {
 
                 <div className="dd-form-group">
                   <label className="dd-label">Barangay</label>
-                  <input
-                    type="text"
-                    required
-                    className="dd-input"
-                    placeholder="Enter your barangay name"
-                    value={reportData.barangay}
-                    onChange={(e) => setReportData({ ...reportData, barangay: e.target.value })}
-                  />
+                  {/* NEW: Dynamic Dropdown instead of free-text! */}
+                  {availableBarangays.length > 0 ? (
+                    <select
+                      required
+                      className="dd-select"
+                      value={reportData.barangay}
+                      onChange={(e) => setReportData({ ...reportData, barangay: e.target.value })}
+                    >
+                      <option value="" disabled>Select your barangay...</option>
+                      {availableBarangays.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      className="dd-input"
+                      placeholder="Loading barangays..."
+                      disabled
+                    />
+                  )}
                 </div>
 
                 <div className="dd-form-group">
@@ -1012,18 +1046,31 @@ export default function PublicPortal() {
                   </select>
                 </div>
 
-                <div className="dd-form-group">
-                  <label className="dd-label">Account No. / Remarks (Optional)</label>
-                  <input
-                    type="text"
-                    className="dd-input"
-                    placeholder="e.g. 12-3456-7890 or landmark"
-                    value={reportData.accountNo}
-                    onChange={(e) => setReportData({ ...reportData, accountNo: e.target.value })}
-                  />
+                {/* NEW: Split Account No. and Remarks */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="dd-form-group">
+                    <label className="dd-label">Account No. (Optional)</label>
+                    <input
+                      type="text"
+                      className="dd-input"
+                      placeholder="e.g. 12-3456"
+                      value={reportData.accountNo}
+                      onChange={(e) => setReportData({ ...reportData, accountNo: e.target.value })}
+                    />
+                  </div>
+                  <div className="dd-form-group">
+                    <label className="dd-label">Landmark / Remarks</label>
+                    <input
+                      type="text"
+                      className="dd-input"
+                      placeholder="Near plaza, etc."
+                      value={reportData.remarks}
+                      onChange={(e) => setReportData({ ...reportData, remarks: e.target.value })}
+                    />
+                  </div>
                 </div>
 
-                <button type="submit" className="dd-report-btn" style={{ width: "100%", maxWidth: "100%" }}>
+                <button type="submit" className="dd-report-btn" style={{ width: "100%", maxWidth: "100%", marginTop: "10px" }}>
                   Submit Report
                 </button>
               </form>

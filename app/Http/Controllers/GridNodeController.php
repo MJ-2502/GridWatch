@@ -13,6 +13,7 @@ class GridNodeController extends Controller
             ->with('barangay:id,name,municipality')
             ->withCount([
                 'incidents as active_incidents_count' => fn ($query) => $query->whereIn('status', ['verified', 'in_progress']),
+                'incidents as crews' => fn ($query) => $query->where('status', 'in_progress'),
             ])
             ->orderBy('code')
             ->get()
@@ -23,12 +24,12 @@ class GridNodeController extends Controller
                 'latitude' => $node->latitude,
                 'longitude' => $node->longitude,
                 'status' => match ($node->status) {
-                    'outage' => 'outage',
-                    'warning', 'pending' => 'unverified',
+                    'power_loss', 'outage' => 'outage',
+                    'offline', 'warning', 'pending' => 'unverified',
                     default => 'nominal',
                 },
-                'reports' => $node->incidents()->sum('affected_customers'),
-                'crews' => $node->incidents()->where('status', 'in_progress')->count(),
+                'reports' => $node->reports ?? 0,
+                'crews' => $node->crews ?? 0,
                 'type' => $node->type,
                 'capacity_kw' => $node->capacity_kw,
                 'active_incidents_count' => $node->active_incidents_count,

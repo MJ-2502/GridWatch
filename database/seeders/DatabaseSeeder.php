@@ -102,7 +102,10 @@ class DatabaseSeeder extends Seeder
         ])->mapWithKeys(function (array $data) use ($barangays) {
             $node = GridNode::updateOrCreate(
                 ['code' => $data['code']],
-                $data + ['barangay_id' => $barangays->get($data['name'])?->id, 'last_ping_at' => now()],
+                $data + ['barangay_id' => $barangays->get($data['name'])?->id, 
+                'last_ping_at' => now(),
+                'api_token' => \Illuminate\Support\Str::random(32), // <-- Generates the hardware license
+                ],               
             );
 
             return [$data['code'] => $node];

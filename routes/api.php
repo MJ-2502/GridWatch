@@ -19,7 +19,16 @@ Route::get('/grid-nodes', [GridNodeController::class, 'index'])->name('api.grid-
 
 Route::post('/iot/ping', [IoTNodeController::class, 'ping']);
 
-Route::post('/reports', [PublicReportController::class, 'store']);
+Route::post('/public/reports', [PublicReportController::class, 'store']);
 
 Route::get('/map/status', [MapController::class, 'status']);
 
+Route::any('/iot/test-connection', function () {
+    return response('SUCCESS', 200);
+});
+
+// Fetch exact barangay names for the public reporting dropdown
+Route::get('/public/barangays', function (\Illuminate\Http\Request $request) {
+    return \App\Models\Barangay::where('municipality', $request->query('municipality'))
+        ->orderBy('name')->pluck('name');
+});

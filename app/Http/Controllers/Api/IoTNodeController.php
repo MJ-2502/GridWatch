@@ -14,24 +14,27 @@ class IoTNodeController extends Controller
 {
     public function ping(Request $request)
     {
+        // 1. Validate using the secure api_token instead of mac_address
         $validated = $request->validate([
-            'mac_address' => 'required|string',
+            'api_token' => 'required|string',
             'status' => 'required|string|in:online,power_loss',
             'sensor_reading' => 'nullable|numeric'
         ]);
 
-        $node = GridNode::where('mac_address', $validated['mac_address'])->first();
+        // 2. Look up the hardware by its secure license token
+        $node = GridNode::where('api_token', $validated['api_token'])->first();
 
         if (!$node) {
-            return response()->json(['message' => 'Node not found or not registered.'], 404);
+            return response()->json(['message' => 'Node not found or invalid hardware license.'], 401);
         }
 
+        // 3. Update status
         $node->update([
             'status' => $validated['status'],
             'last_ping_at' => now(),
         ]);
 
-        // Trigger the Hybrid Logic if power is lost
+        // 4. Trigger the Hybrid Logic if power is lost (Your excellent capstone logic!)
         if ($validated['status'] === 'power_loss') {
             $this->verifyOutageReports($node);
         }

@@ -15,6 +15,7 @@ protected $fillable = [
         'barangay_id',
         'code',
         'mac_address',
+        'api_token',
         'name',
         'type',
         'status',

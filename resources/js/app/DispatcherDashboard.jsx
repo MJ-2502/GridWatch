@@ -137,7 +137,7 @@ function NodePopup({ node, onDetails, onDispatch }) {
 }
 
 // NEW: Region Summary Modal for both Municipalities and Barangays
-function RegionSummaryModal({ region, nodes, scope, onClose }) {
+function RegionSummaryModal({ region, nodes, liveStatuses, scope, onClose }) {
     if (!region) return null;
     
     // Calculate aggregated stats dynamically based on region type
@@ -149,10 +149,24 @@ function RegionSummaryModal({ region, nodes, scope, onClose }) {
         }
     }, [region, nodes]);
 
+    // Gather live map statuses for the selected region
+    const matchedStatuses = useMemo(() => {
+        if (!liveStatuses) return [];
+        if (region.type === 'municipality') {
+            return liveStatuses.filter(s => municipalityKey(s.municipality) === municipalityKey(region.name));
+        } else {
+            return liveStatuses.filter(s => 
+                municipalityKey(s.name) === municipalityKey(region.name) &&
+                municipalityKey(s.municipality) === municipalityKey(region.feature.properties?.ADM3_EN)
+            );
+        }
+    }, [region, liveStatuses]);
+
     const totalNodes = matchedNodes.length;
-    const outages = matchedNodes.filter(n => n.status === 'outage').length;
-    const unverified = matchedNodes.filter(n => n.status === 'unverified').length;
-    const totalReports = matchedNodes.reduce((sum, n) => sum + (n.reports || 0), 0);
+    // We combine outages/reports from liveStatuses (which includes isolated issues not bound to a node)
+    const outages = matchedStatuses.reduce((sum, s) => sum + (s.outages || 0), 0);
+    const unverifiedNodes = matchedNodes.filter(n => n.status === 'unverified').length;
+    const totalReports = matchedStatuses.reduce((sum, s) => sum + (s.reports || 0), 0);
 
     return (
         <div className="detail-modal-backdrop" onClick={onClose}>
@@ -185,7 +199,7 @@ function RegionSummaryModal({ region, nodes, scope, onClose }) {
                     </div>
                     <div>
                         <span>UNVERIFIED ALERTS</span>
-                        <b style={{ color: unverified > 0 ? "#f4a516" : "inherit" }}>{unverified}</b>
+                        <b style={{ color: unverifiedNodes > 0 ? "#f4a516" : "inherit" }}>{unverifiedNodes}</b>
                     </div>
                     <div>
                         <span>CITIZEN REPORTS</span>
@@ -196,11 +210,11 @@ function RegionSummaryModal({ region, nodes, scope, onClose }) {
                     <span>STATUS ASSESSMENT</span>
                     <p>
                         {outages > 0 
-                            ? `Critical: ${outages} node(s) currently offline. Prioritize restoration efforts in ${region.name}.` 
-                            : unverified > 0 
-                                ? `Warning: ${unverified} unverified alert(s) detected. Monitor resident reports closely.`
+                            ? `Critical: ${outages} outage(s) active. Prioritize restoration efforts in ${region.name}.` 
+                            : unverifiedNodes > 0 || totalReports > 0
+                                ? `Warning: Unverified node alerts or citizen reports detected. Monitor ${region.name} closely.`
                                 : totalNodes === 0
-                                    ? `No monitored GridWatch nodes exist within this boundary.`
+                                    ? `No monitored GridWatch nodes or reports exist within this boundary.`
                                     : `All ${totalNodes} monitored nodes in ${region.name} are currently nominal.`}
                     </p>
                 </div>
@@ -313,7 +327,7 @@ export default function DispatcherDashboard() {
     // that touches `scope` directly can run in that mode (guarded below).
     const scope = isAllTerritories ? null : scopes[scopeKey];
     const [activeSection, setActiveSection] = useState("Network map");
-    const [barangayFeaturesList, setBarangayFeaturesList] = useState([]); 
+    const [rawBarangayFeatures, setRawBarangayFeatures] = useState([]); 
     const [liveStatuses, setLiveStatuses] = useState([]);
     // NEW: Reference to manage the click delay timer
     const clickTimerRef = useRef(null);
@@ -381,7 +395,7 @@ export default function DispatcherDashboard() {
     useEffect(() => {
         // 1. INSTANTLY clear the old data and active selections on change.
         // This forces the Leaflet GeoJSON layer to unmount and prevents the "stale data" bug.
-        setBarangayFeaturesList([]);
+        setRawBarangayFeatures([]);
         clearSelectedBarangay();
 
         // 2. If we just cleared the scope (e.g., clicked back to full view), stop here.
@@ -393,27 +407,7 @@ export default function DispatcherDashboard() {
         let isMounted = true;
         loadBarangayFeatures(scope, municipality).then(features => {
             if (isMounted) { 
-                // MERGE: Inject the Laravel colors into the GeoJSON features
-                const mergedFeatures = features.map(feature => {
-                    const brgyName = feature.properties?.ADM4_EN || feature.properties?.NAME_3 || "Barangay";
-                    
-                    const liveData = liveStatuses.find(d => 
-                        municipalityKey(d.name) === municipalityKey(brgyName) &&
-                        municipalityKey(d.municipality) === municipalityKey(municipality)
-                    );
-                    
-                    return {
-                        ...feature,
-                        properties: {
-                            ...feature.properties,
-                            // Default to your dark theme color if nominal, otherwise use the API color
-                            fillColor: liveData && liveData.status !== 'normal' ? liveData.color : "#0d1b20",
-                            fillOpacity: liveData && liveData.status !== 'normal' ? 0.6 : 0.1,
-                            status: liveData ? liveData.status : "normal"
-                        }
-                    };
-                });
-                setBarangayFeaturesList(mergedFeatures);
+                setRawBarangayFeatures(features);
             }
         });
 
@@ -421,11 +415,38 @@ export default function DispatcherDashboard() {
     }, [scope, municipality]);
 
     useEffect(() => {
-        fetch("/api/map/status", { headers: { "Accept": "application/json" } })
-            .then((response) => (response.ok ? response.json() : []))
-            .then((payload) => setLiveStatuses(payload))
-            .catch(() => setLiveStatuses([]));
+        const fetchMapStatus = () => {
+            fetch("/api/map/status", { headers: { "Accept": "application/json" } })
+                .then((response) => (response.ok ? response.json() : []))
+                .then((payload) => setLiveStatuses(payload))
+                .catch(() => setLiveStatuses([]));
+        };
+        fetchMapStatus();
+        const intervalId = setInterval(fetchMapStatus, 5000);
+        return () => clearInterval(intervalId);
     }, []);
+
+    const barangayFeaturesList = useMemo(() => {
+        return rawBarangayFeatures.map(feature => {
+            const brgyName = feature.properties?.ADM4_EN || feature.properties?.NAME_3 || "Barangay";
+            
+            const liveData = liveStatuses.find(d => 
+                municipalityKey(d.name) === municipalityKey(brgyName) &&
+                municipalityKey(d.municipality) === municipalityKey(municipality)
+            );
+            
+            return {
+                ...feature,
+                properties: {
+                    ...feature.properties,
+                    // Default to your dark theme color if nominal, otherwise use the API color
+                    fillColor: liveData && liveData.status !== 'normal' ? liveData.color : "#0d1b20",
+                    fillOpacity: liveData && liveData.status !== 'normal' ? 0.6 : 0.1,
+                    status: liveData ? liveData.status : "normal"
+                }
+            };
+        });
+    }, [rawBarangayFeatures, liveStatuses, municipality]);
 
     const barangays = useMemo(
         () => ({
@@ -525,10 +546,15 @@ export default function DispatcherDashboard() {
     };
 
     useEffect(() => {
-        fetch("/api/public/incidents")
-            .then((response) => (response.ok ? response.json() : { data: [] }))
-            .then((payload) => setIncidents(payload.data || []))
-            .catch(() => setIncidents([]));
+        const fetchIncidents = () => {
+            fetch("/api/public/incidents")
+                .then((response) => (response.ok ? response.json() : { data: [] }))
+                .then((payload) => setIncidents(payload.data || []))
+                .catch(() => setIncidents([]));
+        };
+        fetchIncidents();
+        const intervalId = setInterval(fetchIncidents, 5000);
+        return () => clearInterval(intervalId);
     }, []);
 
     useEffect(() => {
@@ -889,6 +915,7 @@ export default function DispatcherDashboard() {
             <RegionSummaryModal 
                 region={regionSummary} 
                 nodes={nodes} 
+                liveStatuses={liveStatuses}
                 scope={scope} 
                 onClose={() => setRegionSummary(null)} 
             />

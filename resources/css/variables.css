@@ -1,0 +1,43 @@
+/* Design Token: Global Color Palette */
+:root {
+  /* Primary Brand */
+  --color-primary: #171d6b;
+  --color-primary-contrast: #f8fcfa;
+
+  /* Background & Surface */
+  --color-bg: #edf2ef;
+  --color-surface: #fafcfa;
+
+  /* Borders & Text */
+  --color-border: #d8e2dd;
+  --color-text: #162b2a;
+  --color-text-strong: #183432;
+  --color-text-muted: #68817b;
+  --color-text-subtle: #40564f;
+
+  /* Status Colors */
+  --color-success: #3cbd91; /* original var(--dd-green) */
+  --color-danger: #c0392b;  /* original var(--dd-red) */
+  --color-warning: #f59e0b;
+
+  /* Dark Theme (optional) */
+  --color-dark-bg: #07111c;
+  --color-dark-bg-inset: #0a1020;
+  --color-dark-border: #182c40;
+  --color-dark-text: #d5e1ec;
+}
+
+/* Backwards compatibility – map old variables to new ones */
+:root {
+  --dd-primary: var(--color-primary);
+  --dd-primary-contrast: var(--color-primary-contrast);
+  --dd-bg: var(--color-bg);
+  --dd-surface: var(--color-surface);
+  --dd-border: var(--color-border);
+  --dd-text: var(--color-text);
+  --dd-text-strong: var(--color-text-strong);
+  --dd-text-muted: var(--color-text-muted);
+  --dd-text-subtle: var(--color-text-subtle);
+  --dd-green: var(--color-success);
+  --dd-red: var(--color-danger);
+}

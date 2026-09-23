@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { scopes, municipalityNames, loadBarangayFeatures } from "./data/coverage";
 
+
+
 // --- SORECO Service Areas (Dynamically loaded from coverage.js) ---
 const SORECO_AREAS = {
   SORECO_1: municipalityNames(scopes.soreco1).sort(),

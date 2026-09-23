@@ -25,14 +25,17 @@ class MapController extends Controller
             $status = 'normal';
             $color = '#22c55e'; 
 
+            $outagesCount = $barangay->incidents->count();
+            $reportsCount = $barangay->outageReports->count();
+
             // HYBRID LOGIC FOR MAP COLORS:
             // 1. If there is a Verified Incident (Hardware confirmed) -> RED
-            if ($barangay->incidents->count() > 0) {
+            if ($outagesCount > 0) {
                 $status = 'outage';
                 $color = '#ef4444'; // Red
             } 
             // 2. If there are pending public reports (Unverified) -> YELLOW
-            elseif ($barangay->outageReports->count() > 0) {
+            elseif ($reportsCount > 0) {
                 $status = 'warning';
                 $color = '#eab308'; // Yellow
             }
@@ -44,7 +47,9 @@ class MapController extends Controller
                 'cooperative' => $barangay->cooperative,
                 'boundary_reference' => $barangay->boundary_reference,
                 'status' => $status,
-                'color' => $color
+                'color' => $color,
+                'outages' => $outagesCount,
+                'reports' => $reportsCount
             ];
         });
 

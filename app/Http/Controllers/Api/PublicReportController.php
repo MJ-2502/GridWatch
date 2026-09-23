@@ -9,6 +9,7 @@ use App\Models\Incident;
 use App\Models\Barangay;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 
 class PublicReportController extends Controller
@@ -20,35 +21,43 @@ class PublicReportController extends Controller
     {
         // 1. Validate incoming string payload from React
         $validated = $request->validate([
-            'barangay' => 'required|string',
-            'municipality' => 'required|string',
+            'municipality' => ['required', 'string'],
+            'barangay' => [
+                'required',
+                'string',
+                Rule::exists('barangays', 'name')->where(function ($query) use ($request) {
+                    $query->whereRaw('LOWER(municipality) = ?', [strtolower($request->input('municipality'))]);
+                })
+            ],
             'issueType' => 'required|string',
             'accountNo' => 'nullable|string',
-            'remarks' => 'nullable|string'
+            'remarks' => 'nullable|string',
         ]);
 
-        // 2. Look up the Barangay ID based on the string names sent by React
-        $barangayModel = Barangay::where('name', $validated['barangay'])
-            ->where('municipality', $validated['municipality'])
+        // 2. Normalise and look up the Barangay (case‑insensitive, trimmed)
+        $barangayName = trim($validated['barangay']);
+        $municipality = trim($validated['municipality']);
+        $barangayModel = Barangay::whereRaw('LOWER(name) = ?', [strtolower($barangayName)])
+            ->whereRaw('LOWER(municipality) = ?', [strtolower($municipality)])
             ->first();
-
-        if (!$barangayModel) {
-            return response()->json(['error' => 'Service area not recognized.'], 404);
-        }
+        // If not found, we proceed with null values (barangay_id, latitude, longitude)
+        $barangayId = $barangayModel ? $barangayModel->id : null;
+        $latitude   = $barangayModel ? $barangayModel->latitude  : null;
+        $longitude  = $barangayModel ? $barangayModel->longitude : null;
 
         $reference = 'RPT-' . now()->format('Y') . '-' . strtoupper(Str::random(6));
 
         // 3. Create the pending report
         $report = OutageReport::create([
-            'user_id' => auth()->id(), // Attach user if logged in
-            'barangay_id' => $barangayModel->id,
+            'user_id' => null, // Allow unauthenticated submissions
+            'barangay_id' => $barangayId,
             'reference' => $reference,
             'reporter_contact' => $validated['accountNo'] ?? null,
             // Combine issue type and remarks into the description
             'description' => $validated['issueType'] . ($validated['remarks'] ? ' - ' . $validated['remarks'] : ''),
-            'status' => 'pending', 
-            'latitude' => $barangayModel->latitude,
-            'longitude' => $barangayModel->longitude,
+            'status' => 'pending',
+            'latitude' => $latitude,
+            'longitude' => $longitude,
             'reported_at' => now(),
         ]);
 
@@ -68,7 +77,7 @@ class PublicReportController extends Controller
      * Instantly verifies the report if the local IoT node is already down, 
      * or groups it into an Isolated Fault if hardware is online.
      */
-    private function processIncidentGrouping(OutageReport $report, Barangay $barangay)
+    private function processIncidentGrouping(OutageReport $report, ?Barangay $barangay)
     {
         $node = GridNode::where('barangay_id', $report->barangay_id)->first();
         $isHardwareOffline = $node && $node->status === 'power_loss';

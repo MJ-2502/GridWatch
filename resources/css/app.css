@@ -6,21 +6,21 @@
 /* ===== BASE / RESET ====================================================== */
 
 :root {
-  /* Brand / light chrome — shared by topbar, portal nav, cards, buttons */
-  --color-primary: #176b66;
-  --color-primary-contrast: #f8fcfa;
-  --color-bg: #edf2ef;
-  --color-surface: #fafcfa;
-  --color-border: #d8e2dd;
-  --color-text: #162b2a;
-  --color-text-strong: #183432;
-  --color-text-muted: #68817b;
-  --color-text-subtle: #40564f;
-  --color-live: #3cbd91;
+  /* Dark chrome — shared by topbar, portal nav, cards, buttons */
+  --color-primary: #165eff;
+  --color-primary-contrast: #ffffff;
+  --color-bg: #071018;
+  --color-surface: #0a131c;
+  --color-border: #1b2a38;
+  --color-text: #d6e0e8;
+  --color-text-strong: #f1f5f9;
+  --color-text-muted: #8ca4ba;
+  --color-text-subtle: #536c86;
+  --color-live: #17cf70;
 
   /* Status */
-  --color-danger: #c0392b;
-  --color-danger-bg: #fdf5f4;
+  --color-danger: #ef4444;
+  --color-danger-bg: rgba(239, 68, 68, 0.1);
 
   /* Dark chrome — dispatcher sidebar, ops panels, dark auth aside */
   --color-dark-bg: #07111c;
@@ -169,12 +169,6 @@ h2 {
 }
 /* ===== SHARED — STAT CARDS =============================================== */
 
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 18px;
-}
 .stat-card {
   min-height: 140px;
   padding: 19px 20px;
@@ -1497,7 +1491,7 @@ h2 {
   font:
     14px Arial,
     sans-serif;
-  background: #fff;
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 6px;
 }

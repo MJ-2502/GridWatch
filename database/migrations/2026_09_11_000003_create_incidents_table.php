@@ -19,7 +19,6 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->string('status')->default('pending');
             $table->string('cause')->nullable();
-            $table->unsignedInteger('affected_customers')->default(0);
             $table->decimal('latitude', 10, 7)->nullable();
             $table->decimal('longitude', 10, 7)->nullable();
             $table->timestamp('started_at')->nullable();

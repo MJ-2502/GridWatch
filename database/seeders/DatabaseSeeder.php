@@ -17,6 +17,10 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
+        // Import all barangays first
+        $this->command->info('Importing barangays from GeoJSON...');
+        \Illuminate\Support\Facades\Artisan::call('import:barangays', [], $this->command->getOutput());
+
         // 1. Admin (Full system access)
         $manager = User::updateOrCreate(
             ['email' => 'manager@gridwatch.test'],
@@ -79,6 +83,8 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Inlagadian', 'municipality' => 'Casiguran', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Casiguran Brgy/Inlagadian.geojson'],
             ['name' => 'Barcelona Central', 'municipality' => 'Barcelona', 'cooperative' => 'SORECO 2', 'boundary_reference' => 'Soreco_2/Barcelona Brgy/Central.geojson'],
             ['name' => 'Poblacion', 'municipality' => 'Gubat', 'cooperative' => 'SORECO 2', 'boundary_reference' => 'Soreco_2/Gubat Brgy/Poblacion.geojson'],
+            ['name' => 'Bibincahan', 'municipality' => 'Sorsogon City', 'cooperative' => 'SORECO 2', 'boundary_reference' => 'Soreco_2/Sorsogon City/Bibincahan.geojson'],
+            ['name' => 'Poblacion', 'municipality' => 'Bulan', 'cooperative' => 'SORECO 1', 'boundary_reference' => 'Soreco_1/Bulan Brgy/Poblacion.geojson'],
         ])->mapWithKeys(function (array $data) {
             $barangay = Barangay::updateOrCreate(
                 ['name' => $data['name'], 'municipality' => $data['municipality'], 'province' => 'Sorsogon', 'cooperative' => $data['cooperative']],
@@ -99,6 +105,8 @@ class DatabaseSeeder extends Seeder
             ['code' => 'TRF-016', 'mac_address' => 'AA:BB:CC:DD:EE:08', 'name' => 'San Isidro', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8466, 'longitude' => 124.0121, 'capacity_kw' => 200],
             ['code' => 'TRF-018', 'mac_address' => 'AA:BB:CC:DD:EE:09', 'name' => 'San Pascual', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8792, 'longitude' => 124.0608, 'capacity_kw' => 250],
             ['code' => 'TRF-019', 'mac_address' => 'AA:BB:CC:DD:EE:10', 'name' => 'Santa Cruz', 'type' => 'transformer', 'status' => 'online', 'latitude' => 12.8987, 'longitude' => 124.0396, 'capacity_kw' => 200],
+            ['code' => 'TRF-020', 'mac_address' => 'AA:BB:CC:DD:EE:11', 'name' => 'Bibincahan', 'type' => 'transformer', 'status' => 'power_loss', 'latitude' => 12.9745, 'longitude' => 123.9922, 'capacity_kw' => 500],
+            ['code' => 'TRF-021', 'mac_address' => 'AA:BB:CC:DD:EE:12', 'name' => 'Poblacion', 'type' => 'pole', 'status' => 'power_loss', 'latitude' => 12.6745, 'longitude' => 123.8744, 'capacity_kw' => 300],
         ])->mapWithKeys(function (array $data) use ($barangays) {
             $node = GridNode::updateOrCreate(
                 ['code' => $data['code']],
@@ -112,8 +120,10 @@ class DatabaseSeeder extends Seeder
         });
 
         $incidents = [
-            ['reference' => 'INC-2026-001', 'grid_node_id' => $nodes['TRF-006']->id, 'barangay_id' => $barangays['Central (Pob.)']->id, 'reported_by' => $operator->id, 'verified_by' => $manager->id, 'title' => 'Central transformer interruption', 'description' => 'Complete power loss detected at transformer TRF-006.', 'status' => 'verified', 'cause' => 'Equipment failure', 'affected_customers' => 218, 'latitude' => 12.8735, 'longitude' => 124.0077, 'started_at' => now()->subMinutes(25), 'estimated_restoration_at' => now()->addHours(2)],
-            ['reference' => 'INC-2026-002', 'grid_node_id' => $nodes['TRF-014']->id, 'barangay_id' => $barangays['Rizal']->id, 'reported_by' => $operator->id, 'title' => 'Rizal feeder outage', 'description' => 'Resident reports indicate a localized outage.', 'status' => 'in_progress', 'cause' => 'Unknown', 'affected_customers' => 143, 'latitude' => 12.8786, 'longitude' => 124.0274, 'started_at' => now()->subMinutes(18), 'estimated_restoration_at' => now()->addHours(1)],
+            ['reference' => 'INC-2026-001', 'grid_node_id' => $nodes['TRF-006']->id, 'barangay_id' => $barangays['Central (Pob.)']->id, 'reported_by' => $operator->id, 'verified_by' => $manager->id, 'title' => 'Central transformer interruption', 'description' => 'Complete power loss detected at transformer TRF-006.', 'status' => 'verified', 'cause' => 'Equipment failure', 'latitude' => 12.8735, 'longitude' => 124.0077, 'started_at' => now()->subMinutes(25), 'estimated_restoration_at' => now()->addHours(2)],
+            ['reference' => 'INC-2026-002', 'grid_node_id' => $nodes['TRF-014']->id, 'barangay_id' => $barangays['Rizal']->id, 'reported_by' => $operator->id, 'title' => 'Rizal feeder outage', 'description' => 'Resident reports indicate a localized outage.', 'status' => 'in_progress', 'cause' => 'Unknown', 'latitude' => 12.8786, 'longitude' => 124.0274, 'started_at' => now()->subMinutes(18), 'estimated_restoration_at' => now()->addHours(1)],
+            ['reference' => 'INC-2026-003', 'grid_node_id' => $nodes['TRF-020']->id, 'barangay_id' => $barangays['Bibincahan']->id, 'reported_by' => null, 'title' => 'Tripped Feeder Line 3', 'description' => 'Unscheduled outage due to blown transformer fuse near West District boundary.', 'status' => 'verified', 'cause' => 'Unknown', 'latitude' => 12.9745, 'longitude' => 123.9922, 'started_at' => now()->subMinutes(45), 'estimated_restoration_at' => now()->addHours(3)],
+            ['reference' => 'INC-2026-004', 'grid_node_id' => $nodes['TRF-021']->id, 'barangay_id' => $barangays['Poblacion']->id, 'reported_by' => null, 'title' => 'Low Voltage / Phase Drop', 'description' => 'Linemen dispatched to re-balance distribution transformer load.', 'status' => 'in_progress', 'cause' => 'Unknown', 'latitude' => 12.6745, 'longitude' => 123.8744, 'started_at' => now()->subMinutes(120), 'estimated_restoration_at' => now()->addHours(2)],
         ];
 
         foreach ($incidents as $data) {

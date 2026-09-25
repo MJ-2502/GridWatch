@@ -12,17 +12,14 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('public')->name('api.public.')->group(function () {
     Route::get('/incidents', [PublicIncidentController::class, 'index'])->name('incidents.index');
     Route::get('/incidents/{reference}', [PublicIncidentController::class, 'show'])->name('incidents.show');
-    Route::post('/outage-reports', [PublicOutageReportController::class, 'store'])->name('outage-reports.store');
-    Route::post('/reports', [PublicReportController::class, 'store'])->name('public.reports.store');
+    
+    Route::middleware('throttle:6,1')->group(function () {
+        Route::post('/outage-reports', [PublicOutageReportController::class, 'store'])->name('outage-reports.store');
+        Route::post('/reports', [PublicReportController::class, 'store'])->name('public.reports.store');
+    });
 });
 
-Route::get('/grid-nodes', [GridNodeController::class, 'index'])->name('api.grid-nodes.index');
-
-Route::post('/iot/ping', [IoTNodeController::class, 'ping']);
-
-
-
-Route::get('/map/status', [MapController::class, 'status']);
+Route::middleware('throttle:60,1')->post('/iot/ping', [IoTNodeController::class, 'ping']);
 
 Route::any('/iot/test-connection', function () {
     return response('SUCCESS', 200);

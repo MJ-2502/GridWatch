@@ -13,8 +13,8 @@ import {
     TileLayer,
     useMap,
     LayersControl,
-    Pane
-
+    Pane,
+    Marker
 } from "react-leaflet";
 import L from "leaflet";
 import {
@@ -24,6 +24,36 @@ import {
     municipalityKey,
     scopes,
 } from "./data/coverage";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+function createPulseIcon(color) {
+    const svg = `<svg width="48" height="48" viewBox="0 0 24 24" fill="${color}" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;"><style>.spinner_98HH{animation:spinner_mnRT 1.6s cubic-bezier(0.52,.6,.25,.99) infinite}.spinner_roCJ{animation-delay:.2s}.spinner_q4Oo{animation-delay:.4s}@keyframes spinner_mnRT{0%{r:0;opacity:1}75%,100%{r:11px;opacity:0}}</style><circle cx="12" cy="12" r="3.5" fill="${color}" /><circle class="spinner_98HH" cx="12" cy="12" r="0"/><circle class="spinner_98HH spinner_roCJ" cx="12" cy="12" r="0"/><circle class="spinner_98HH spinner_q4Oo" cx="12" cy="12" r="0"/></svg>`;
+    return L.divIcon({
+        html: svg,
+        className: 'custom-pulse-icon',
+        iconSize: [48, 48],
+        iconAnchor: [24, 24],
+        popupAnchor: [0, -12]
+    });
+}
 
 function pointInRing(point, ring) {
     const [x, y] = point;
@@ -224,7 +254,72 @@ function RegionSummaryModal({ region, nodes, liveStatuses, scope, onClose }) {
 }
 
 function DetailModal({ node, scope, onClose, onDispatch }) {
+    const [chartData, setChartData] = useState([]);
+
+    useEffect(() => {
+        if (!node) return;
+        
+        let baseReports = node.reports || 0;
+        
+        // Generate simulated data for the last 6 blocks of 30 mins
+        let data = Array.from({ length: 6 }, (_, i) => {
+            const timeDate = new Date(Date.now() - (5 - i) * 30 * 60 * 1000);
+            const time = timeDate.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit' });
+            
+            // The most recent block (index 5) gets the current actual reports
+            // Earlier blocks get a random lower amount or 0 if it was completely nominal
+            let value = 0;
+            if (i === 5) {
+                value = baseReports;
+            } else if (baseReports > 0) {
+                value = Math.max(0, Math.floor(baseReports * Math.random() * (i/5)));
+            }
+            
+            return { time, value };
+        });
+        
+        setChartData(data);
+    }, [node, node?.reports]);
+
     if (!node) return null;
+    
+    const isIssue = node.status === 'outage' || node.status === 'unverified';
+    const chartBgColor = node.status === 'outage' ? 'rgba(255, 72, 72, 0.8)' : (node.status === 'unverified' ? 'rgba(244, 165, 22, 0.8)' : 'rgba(35, 197, 110, 0.8)');
+
+    const chartConfig = {
+        data: {
+            labels: chartData.map(d => d.time),
+            datasets: [{
+                label: 'Reports',
+                data: chartData.map(d => d.value),
+                backgroundColor: chartBgColor,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: true }
+            },
+            scales: {
+                x: { 
+                    display: true, 
+                    grid: { display: false },
+                    ticks: { color: '#68817b', maxRotation: 0 }
+                },
+                y: { 
+                    display: true, 
+                    grid: { color: '#162b32', drawBorder: false },
+                    ticks: { color: '#68817b', precision: 0 },
+                    beginAtZero: true,
+                    suggestedMax: 5
+                }
+            }
+        }
+    };
+
     return (
         <div className="detail-modal-backdrop" onClick={onClose}>
             <section
@@ -259,12 +354,10 @@ function DetailModal({ node, scope, onClose, onDispatch }) {
                             "SENSOR",
                             node.status === "outage" ? "NO SIGNAL" : "ACTIVE",
                         ],
-                        ["AFFECTED HH", node.reports],
+                        ["AFFECTED HH", node.reports ? Math.max(1, node.reports * 35) : 0],
                         [
                             "REPORTS",
-                            node.reports
-                                ? Math.max(1, Math.round(node.reports / 35))
-                                : 0,
+                            node.reports || 0,
                         ],
                     ].map(([label, value]) => (
                         <div key={label}>
@@ -274,16 +367,9 @@ function DetailModal({ node, scope, onClose, onDispatch }) {
                     ))}
                 </div>
                 <div className="detail-section">
-                    <span>RESIDENT REPORT VOLUME · LAST 3H</span>
-                    <div className="detail-bars">
-                        {[18, 28, 24, 42, 35, 64, 52, 78, 66, 100].map(
-                            (height, index) => (
-                                <i
-                                    key={index}
-                                    style={{ height: `${height}%` }}
-                                />
-                            ),
-                        )}
+                    <span>REPORT COUNTER · PER 30 MINS</span>
+                    <div style={{ height: '140px', width: '100%', marginTop: '12px' }}>
+                        <Bar data={chartConfig.data} options={chartConfig.options} />
                     </div>
                 </div>
                 <div className="detail-section">
@@ -294,7 +380,7 @@ function DetailModal({ node, scope, onClose, onDispatch }) {
                             : "Monitoring voltage and resident reports for changes."}
                     </p>
                 </div>
-                {(node.status === "outage" || node.status === "unverified") && (
+                {isIssue && (
                     <button
                         className="modal-dispatch"
                         onClick={() => {
@@ -705,16 +791,6 @@ export default function DispatcherDashboard() {
                 </div>
             </aside>
             <section className="dashboard-content">
-                <div className="stat-grid">
-                    <article className="stat-card">
-                        <div className="stat-heading">
-                            <span>Open incidents</span>
-                        </div>
-                        <strong>
-                            {String(incidents.length || 4).padStart(2, "0")}
-                        </strong>
-                    </article>
-                </div>
                 <section className="map-panel">
                     <div className="panel-header">
                         <div className="map-controls">
@@ -859,46 +935,44 @@ export default function DispatcherDashboard() {
                                             municipalityKey(node.municipality) ===
                                                 municipalityKey(municipality),
                                     )
-                                    .map((node) => (
-                                        <CircleMarker
-                                            key={node.id}
-                                            center={[
-                                                node.latitude,
-                                                node.longitude,
-                                            ]}
-                                            radius={
-                                                node.status === "outage" ? 7 : 6
-                                            }
-                                            pathOptions={{
-                                                color: "#f5f8f6",
-                                                weight: 2,
-                                                fillColor:
-                                                    node.status === "outage"
-                                                        ? "#ff4848"
-                                                        : node.status ===
-                                                            "unverified"
-                                                            ? "#f4a516"
-                                                            : "#23c56e",
-                                                fillOpacity: 1,
-                                            }}
-                                        >
-                                            {/* Explicit pane override: without this the Popup inherits
-                                                the "nodes" Pane from its parent CircleMarker (via
-                                                react-leaflet's pane context) instead of Leaflet's own
-                                                popupPane, which is why it was stacking at the same
-                                                z-index level as the node markers themselves. */}
-                                            <Popup
-                                                className="node-popup-wrapper"
-                                                pane="popupPane"
-                                            >
-                                                <NodePopup
-                                                    node={node}
-                                                    onDetails={setDetailNode}
-                                                    onDispatch={dispatchCrew}
-                                                />
+                                    .map((node) => {
+                                        const isIssue = node.status === "outage" || node.status === "unverified";
+                                        const nodeColor = node.status === "outage" ? "#ff4848" : (node.status === "unverified" ? "#f4a516" : "#23c56e");
+                                        const position = [node.latitude, node.longitude];
+                                        const popup = (
+                                            <Popup className="node-popup-wrapper" pane="popupPane">
+                                                <NodePopup node={node} onDetails={setDetailNode} onDispatch={dispatchCrew} />
                                             </Popup>
-                                        </CircleMarker>
-                                    ))}
+                                        );
+
+                                        if (isIssue) {
+                                            return (
+                                                <Marker
+                                                    key={node.id}
+                                                    position={position}
+                                                    icon={createPulseIcon(nodeColor)}
+                                                >
+                                                    {popup}
+                                                </Marker>
+                                            );
+                                        }
+
+                                        return (
+                                            <CircleMarker
+                                                key={node.id}
+                                                center={position}
+                                                radius={6}
+                                                pathOptions={{
+                                                    color: "#f5f8f6",
+                                                    weight: 2,
+                                                    fillColor: nodeColor,
+                                                    fillOpacity: 1,
+                                                }}
+                                            >
+                                                {popup}
+                                            </CircleMarker>
+                                        );
+                                    })}
                             </Pane>
                         </MapContainer>
                         <div className="map-legend">

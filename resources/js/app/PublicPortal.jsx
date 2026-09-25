@@ -1,7 +1,27 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import { scopes, municipalityNames, loadBarangayFeatures } from "./data/coverage";
+import { Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler
+} from "chart.js";
 
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler
+);
 
 
 // --- SORECO Service Areas (Dynamically loaded from coverage.js) ---
@@ -90,11 +110,7 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
     }
   }, [reportData.municipality, reportData.cooperative]);
 
-  // Downdetector 24h Hourly Report Volume (Mock data scaled by active incidents)
-  const hourlyReportHistory = useMemo(() => {
-    const base = [12, 8, 5, 4, 3, 2, 6, 15, 24, 30, 42, 38, 45, 50, 62, 78, 95, 110, 85, 60, 40, 28, 18, 14];
-    return base;
-  }, []);
+  const [hourlyReportHistory, setHourlyReportHistory] = useState(Array(24).fill(0));
 
   const loadIncidents = React.useCallback(() => {
     setStatus((previous) => (previous === "ready" ? "ready" : "loading"));
@@ -107,39 +123,14 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
       })
       .then((payload) => {
         setIncidents(payload.data || []);
+        if (payload.meta && payload.meta.hourly_reports) {
+          setHourlyReportHistory(payload.meta.hourly_reports);
+        }
         setRefreshedAt(new Date());
         setStatus("ready");
       })
       .catch(() => {
-        // Fallback mock data if API fails or for local demo
-        setIncidents([
-          {
-            id: "inc-1",
-            title: "Tripped Feeder Line 3",
-            barangay: "Bibincahan",
-            municipality: "Sorsogon City (East District)",
-            cooperative: "SORECO II",
-            severity: "critical",
-            status: "active",
-            affected_customers: 3420,
-            started_at: new Date(Date.now() - 45 * 60000).toISOString(),
-            eta: "6:30 PM",
-            summary: "Unscheduled outage due to blown transformer fuse near West District boundary."
-          },
-          {
-            id: "inc-2",
-            title: "Low Voltage / Phase Drop",
-            barangay: "Poblacion",
-            municipality: "Bulan",
-            cooperative: "SORECO I",
-            severity: "minor",
-            status: "active",
-            affected_customers: 850,
-            started_at: new Date(Date.now() - 120 * 60000).toISOString(),
-            eta: "7:00 PM",
-            summary: "Linemen dispatched to re-balance distribution transformer load."
-          }
-        ]);
+        // If API fails, retain previous state
         setRefreshedAt(new Date());
         setStatus("ready");
       });
@@ -156,10 +147,124 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
     [incidents]
   );
 
-  const totalAffectedHouseholds = useMemo(
-    () => activeIncidents.reduce((total, i) => total + Number(i.affected_customers ?? 0), 0),
-    [activeIncidents]
-  );
+  const chartData = useMemo(() => {
+    const labels = [];
+    const currentHour = new Date().getHours();
+    
+    for (let i = 0; i < 24; i++) {
+      const hourDiff = 23 - i;
+      const d = new Date();
+      d.setHours(currentHour - hourDiff);
+      const h = d.getHours();
+      
+      if (h % 3 === 0) {
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const displayH = h % 12 === 0 ? 12 : h % 12;
+        labels.push(`${displayH} ${ampm}`);
+      } else {
+        labels.push('');
+      }
+    }
+    
+    const avg = hourlyReportHistory.reduce((a, b) => a + b, 0) / 24;
+    const baseline = Array(24).fill(Math.max(3, avg));
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Baseline',
+          data: baseline,
+          borderColor: 'rgba(255, 255, 255, 0.7)',
+          borderWidth: 1.5,
+          borderDash: [4, 4],
+          fill: false,
+          pointRadius: 0,
+          tension: 0.4
+        },
+        {
+          label: 'Reports',
+          data: hourlyReportHistory,
+          backgroundColor: (context) => {
+            const chart = context.chart;
+            const { ctx, chartArea } = chart;
+            if (!chartArea) return null;
+            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, 'rgba(14, 165, 233, 0.8)');
+            gradient.addColorStop(1, 'rgba(14, 165, 233, 0.1)');
+            return gradient;
+          },
+          borderColor: 'rgba(14, 165, 233, 1)',
+          borderWidth: 1,
+          fill: true,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.1
+        }
+      ]
+    };
+  }, [hourlyReportHistory]);
+
+  const chartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: '#8ca4ba',
+        bodyColor: '#ffffff',
+        callbacks: {
+          title: (items) => {
+             const idx = items[0].dataIndex;
+             const diff = 23 - idx;
+             if (diff === 0) return 'Now';
+             return `${diff} hours ago`;
+          },
+          label: (item) => {
+             if (item.datasetIndex === 0) return null;
+             return ` ${item.raw} reports`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: true,
+          color: 'rgba(255, 255, 255, 0.15)',
+          drawBorder: false,
+          borderDash: [5, 5]
+        },
+        ticks: {
+          color: '#3b82f6',
+          font: {
+            size: 11,
+            weight: 'bold'
+          },
+          maxRotation: 0,
+          autoSkip: false
+        }
+      },
+      y: {
+        beginAtZero: true,
+        suggestedMax: Math.max(10, ...hourlyReportHistory) * 1.2,
+        grid: {
+          display: false,
+          drawBorder: false
+        },
+        ticks: {
+          color: '#8ca4ba',
+          font: { size: 11 },
+          maxTicksLimit: 5
+        }
+      }
+    }
+  }), [hourlyReportHistory]);
 
   // Determine Overall Downdetector Status Tone
   const overallStatus = useMemo(() => {
@@ -173,7 +278,7 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
         badgeClass: "badge-good"
       };
     }
-    if (activeIncidents.length <= 2 && totalAffectedHouseholds < 2000) {
+    if (activeIncidents.length <= 2) {
       return {
         level: "warning",
         title: "User reports indicate possible problems",
@@ -191,7 +296,7 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
       badge: "Major Outage Detected",
       badgeClass: "badge-critical"
     };
-  }, [activeIncidents, totalAffectedHouseholds]);
+  }, [activeIncidents]);
 
   const filteredIncidents = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -227,7 +332,7 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
         setIsReportModalOpen(false);
         setReportData({
           cooperative: "SORECO II",
-          municipality: "Sorsogon City (East District)",
+          municipality: SORECO_AREAS.SORECO_2[0] || "",
           barangay: "",
           issueType: "Total Power Loss",
           accountNo: "",
@@ -272,7 +377,7 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
                 Login
               </a>
             )}
-
+{/* 
             <button
               type="button"
               className="dd-badge badge-warn"
@@ -280,7 +385,7 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
               style={{ cursor: "pointer", border: "none" }}
             >
               {status === "loading" ? "Syncing..." : "Live"}
-            </button>
+            </button> */}
           </div>
         </div>
       </header>
@@ -311,15 +416,15 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
 
       <style>{`
         :root {
-          --dd-bg: #0f141c;
-          --dd-card-bg: #18202c;
-          --dd-card-border: #263244;
-          --dd-text: #f1f5f9;
-          --dd-muted: #94a3b8;
+          --dd-bg: #071018;
+          --dd-card-bg: #0a131c;
+          --dd-card-border: #1b2a38;
+          --dd-text: #d6e0e8;
+          --dd-muted: #8ca4ba;
           --dd-red: #ef4444;
-          --dd-amber: #f59e0b;
-          --dd-green: #10b981;
-          --dd-blue: #3b82f6;
+          --dd-amber: #eab308;
+          --dd-green: #17cf70;
+          --dd-blue: #165eff;
         }
 
         .dd-portal {
@@ -335,7 +440,7 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
           position: sticky;
           top: 0;
           z-index: 40;
-          background: rgba(15, 20, 28, 0.95);
+          background: rgba(5, 11, 18, 0.95);
           backdrop-filter: blur(8px);
           border-bottom: 1px solid var(--dd-card-border);
           padding: 12px 16px;
@@ -786,20 +891,8 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
             </span>
           </div>
 
-          <div className="dd-chart-bars">
-            {hourlyReportHistory.map((val, idx) => (
-              <div
-                key={idx}
-                className={`dd-bar-col ${val > 50 ? "high" : ""}`}
-                style={{ height: `${Math.min(100, val)}%` }}
-                title={`${val} reports ${24 - idx}h ago`}
-              />
-            ))}
-          </div>
-          <div className="dd-chart-timeline">
-            <span>24 hours ago</span>
-            <span>12 hours ago</span>
-            <span>Now</span>
+          <div style={{ height: "180px", position: "relative" }}>
+            <Line data={chartData} options={chartOptions} />
           </div>
         </div>
 
@@ -872,9 +965,6 @@ const [availableBarangays, setAvailableBarangays] = useState([]);
                       </p>
 
                       <div className="dd-card-footer">
-                        <span>
-                          <strong>{Number(incident.affected_customers || 0).toLocaleString()}</strong> households
-                        </span>
                         <span>{incident.eta ? `ETA: ${incident.eta}` : "ETA Assessing"}</span>
                       </div>
                     </article>

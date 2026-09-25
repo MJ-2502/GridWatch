@@ -21,7 +21,6 @@ class Incident extends Model
         'description',
         'status',
         'cause',
-        'affected_customers',
         'latitude',
         'longitude',
         'started_at',

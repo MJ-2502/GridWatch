@@ -15,7 +15,27 @@ class PublicIncidentController extends Controller
             ->latest('started_at')
             ->get();
 
-        return response()->json(['data' => $incidents]);
+        $now = now();
+        $start = $now->copy()->subHours(23)->startOfHour();
+
+        $reportCounts = \App\Models\OutageReport::query()
+            ->where('reported_at', '>=', $start)
+            ->selectRaw('DATE_FORMAT(reported_at, "%Y-%m-%d %H:00:00") as hour, COUNT(*) as count')
+            ->groupBy('hour')
+            ->pluck('count', 'hour');
+
+        $hourlyHistory = [];
+        for ($i = 23; $i >= 0; $i--) {
+            $hourString = $now->copy()->subHours($i)->format('Y-m-d H:00:00');
+            $hourlyHistory[] = $reportCounts->get($hourString, 0);
+        }
+
+        return response()->json([
+            'data' => $incidents,
+            'meta' => [
+                'hourly_reports' => $hourlyHistory,
+            ],
+        ]);
     }
 
     public function show(string $reference): JsonResponse

@@ -31,6 +31,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Guests and Consumers are redirected to the Public Portal
         return redirect()->route('portal');
     })->name('dashboard');
+
+    // Protect dashboard APIs using the session and RBAC
+    Route::middleware('role:admin,dispatcher')->prefix('api')->group(function () {
+        Route::get('/grid-nodes', [\App\Http\Controllers\GridNodeController::class, 'index'])->name('api.grid-nodes.index');
+        Route::get('/map/status', [\App\Http\Controllers\Api\MapController::class, 'status']);
+    });
 });
 
 Route::get('/quick-logout', function (\Illuminate\Http\Request $request) {
